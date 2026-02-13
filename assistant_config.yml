@@ -19,4 +19,4 @@ unified_assistant:
   brain: deepseek-v3
   voice: elevenlabs # local, elevenlabs
   elevenlabs_voice: WejK3H1m7MI9CHnIjW9K
-  whisper_model: tiny.en # tiny.en (fast), small.en (accurate)
+  whisper_model: small.en # tiny.en (fast), small.en (accurate)

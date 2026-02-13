@@ -121,9 +121,10 @@ def awaken(
                 logger.info(f"Conversation response: {response}")
 
         except Exception as e:
-            logger.error(f"Error: {e}")
-
-        recorder.start()
+            logger.error(f"Error processing utterance: {e}", exc_info=True)
+            print(f"  Something went wrong, but I'm still listening.")
+        finally:
+            recorder.start()
 
     # -- Main loop --
     try:

@@ -109,3 +109,8 @@ Current default is `tiny.en` which is fast but inaccurate. Since the target has 
   - `commands/devtools.py` -- Read-only Typer wrappers: `list-prs`, `view-pr`, `list-issues`, `view-issue`, `list-runs`, `view-run`, `repo-status`, `claude-status`, `list-agent-prs`.
   - `prompts/devtools-commands.xml` -- Prompt template for devtools command set.
   - `main_unified.py` -- Router now loads both `commands/template.py` and `commands/devtools.py`.
+- [x] **Phase 3: Reliability**
+  - 3a: `uv sync` verified (portaudio19-dev needed on Debian-based systems).
+  - 3b: DeepSeek `/beta` endpoint confirmed correct for prefix completion features.
+  - 3c: Whisper model default upgraded to `small.en` for better accuracy.
+  - 3d: Error recovery: `recorder.start()` in `finally` block, user-facing error message, `exc_info` in logs.
