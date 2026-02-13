@@ -16,6 +16,9 @@ def ping():
     print("pong")
 
 
+DEVTOOLS_FILE = "commands/devtools.py"
+
+
 @app.command()
 def awaken(
     typer_file: str = typer.Option(
@@ -58,12 +61,12 @@ def awaken(
     # PlainAssistant for conversation
     conversation_agent = PlainAssistant(logger, session_id)
 
-    # -- Load typer commands source for the router --
+    # -- Load typer commands source for the router (both template + devtools) --
     typer_commands_source = ""
-    for tf in [typer_file]:
+    for tf in [typer_file, DEVTOOLS_FILE]:
         if os.path.exists(tf):
             with open(tf, "r") as f:
-                typer_commands_source += f.read() + "\n"
+                typer_commands_source += f"# --- {tf} ---\n" + f.read() + "\n"
 
     # -- STT setup --
     whisper_model = get_config(f"{config_key}.whisper_model") or "tiny.en"

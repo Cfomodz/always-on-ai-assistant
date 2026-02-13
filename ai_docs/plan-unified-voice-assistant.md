@@ -105,3 +105,7 @@ Current default is `tiny.en` which is fast but inaccurate. Since the target has 
   - `main_unified.py` -- Single entry point: STT -> trigger word -> router -> TyperAgent or PlainAssistant.
   - `assistant_config.yml` -- Added `unified_assistant` section (name: Jarvis).
   - `jarvis.sh` -- Launcher script for unified mode.
+- [x] **Phase 2: DevTools Commands**
+  - `commands/devtools.py` -- Read-only Typer wrappers: `list-prs`, `view-pr`, `list-issues`, `view-issue`, `list-runs`, `view-run`, `repo-status`, `claude-status`, `list-agent-prs`.
+  - `prompts/devtools-commands.xml` -- Prompt template for devtools command set.
+  - `main_unified.py` -- Router now loads both `commands/template.py` and `commands/devtools.py`.
