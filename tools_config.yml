@@ -1,0 +1,94 @@
+# Tools registry: controls which tools are visible to the classifier and agent.
+# default_enabled: used when no explicit override in tools_state.json
+# API tools requiring keys (DeepL, Wolfram, Todoist) default to false.
+tools:
+  # --- template.py ---
+  ping_server:
+    default_enabled: true
+  show_config:
+    default_enabled: true
+  list_files:
+    default_enabled: true
+  list_users:
+    default_enabled: true
+  create_user:
+    default_enabled: true
+  delete_user:
+    default_enabled: true
+  generate_report:
+    default_enabled: true
+  backup_data:
+    default_enabled: true
+  restore_data:
+    default_enabled: true
+  summarize_logs:
+    default_enabled: true
+  upload_file:
+    default_enabled: true
+  download_file:
+    default_enabled: true
+  filter_records:
+    default_enabled: true
+  compare_files:
+    default_enabled: true
+  encrypt_data:
+    default_enabled: true
+  decrypt_data:
+    default_enabled: true
+  migrate_database:
+    default_enabled: true
+  queue_task:
+    default_enabled: true
+  remove_task:
+    default_enabled: true
+  list_tasks:
+    default_enabled: true
+  inspect_task:
+    default_enabled: true
+  web_search:
+    default_enabled: true
+  web_news:
+    default_enabled: true
+  web_answer:
+    default_enabled: true
+  # --- New API integrations ---
+  weather:
+    default_enabled: true
+  datamuse_words:
+    default_enabled: true
+  translate:
+    default_enabled: false  # needs DEEPL_API_KEY
+  wolfram:
+    default_enabled: false  # needs WOLFRAM_APP_ID
+  todoist_list:
+    default_enabled: false  # needs TODOIST_API_TOKEN
+  todoist_add:
+    default_enabled: false
+  plane_status:
+    default_enabled: false  # local Plane instance
+  n8n_status:
+    default_enabled: false  # local n8n instance
+  # --- devtools.py ---
+  list_prs:
+    default_enabled: true
+  view_pr:
+    default_enabled: true
+  list_issues:
+    default_enabled: true
+  view_issue:
+    default_enabled: true
+  list_runs:
+    default_enabled: true
+  view_run:
+    default_enabled: true
+  repo_status:
+    default_enabled: true
+  claude_status:
+    default_enabled: true
+  list_agent_prs:
+    default_enabled: true
+  # --- Tool control ---
+  set_tool_enabled:
+    default_enabled: true
+  list_tools:
+    default_enabled: true

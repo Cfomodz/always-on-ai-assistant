@@ -3,6 +3,13 @@ import subprocess
 import json
 from typing import Optional
 
+from modules.tools_registry import (
+    load_tools_config,
+    load_tools_state,
+    set_tool_enabled as registry_set_tool_enabled,
+    get_enabled_tools,
+)
+
 app = typer.Typer()
 
 
@@ -127,6 +134,53 @@ def list_agent_prs(
     else:
         # Fallback: search for PRs with common agent branch prefixes
         output = _run(["gh", "pr", "list", "--limit", str(limit), "--state", "all", "--search", "head:claude/ OR head:cursor/ OR head:devin/ OR head:bot/"])
+    typer.echo(output)
+    return output
+
+
+# -----------------------------------------------------
+# Tool control: enable/disable tools by name
+# -----------------------------------------------------
+
+
+@app.command()
+def set_tool_enabled(
+    name: str = typer.Argument(..., help="Tool/command name (e.g. web_search, weather)"),
+    enable: bool = typer.Option(True, "--enable/--disable", help="Enable or disable the tool"),
+):
+    """Enable or disable a tool by name. Only enabled tools are shown to the classifier."""
+    config = load_tools_config()
+    if registry_set_tool_enabled(name, enable, config):
+        status = "enabled" if enable else "disabled"
+        output = f"Tool '{name}' is now {status}."
+    else:
+        output = f"Unknown tool: '{name}'. Use list-tools to see available tools."
+    typer.echo(output)
+    return output
+
+
+@app.command()
+def list_tools(
+    enabled_only: bool = typer.Option(False, "--enabled", help="Show only enabled tools"),
+):
+    """List all tools and their enabled status."""
+    config = load_tools_config()
+    state = load_tools_state()
+    enabled = get_enabled_tools(config, state)
+    tools = config.get("tools", {})
+    if not tools:
+        output = "No tools configured. Add tools_config.yml with a tools section."
+        typer.echo(output)
+        return output
+    lines = []
+    for name, cfg in sorted(tools.items()):
+        default = cfg.get("default_enabled", True)
+        is_enabled = name in enabled
+        if enabled_only and not is_enabled:
+            continue
+        override = " (override)" if name in state else ""
+        lines.append(f"  {name}: {'enabled' if is_enabled else 'disabled'}{override}")
+    output = "Tools:\n" + "\n".join(lines)
     typer.echo(output)
     return output
 

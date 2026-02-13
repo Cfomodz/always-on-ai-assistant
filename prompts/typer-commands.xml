@@ -9,7 +9,7 @@
     <instruction>Be sure to use - for the function names instead of _ (example: 'hello-world' instead of 'hello_world')</instruction>
     <instruction>Don't use = for arguments, use spaces instead (example: 'hello-world --name John' instead of 'hello-world --name=John')</instruction>
     <instruction>If multiple commands are requested chain them together with '&&' so they run back to back in the terminal only if the previous command succeeds.</instruction>
-    <instruction>If asked generated multiple commands be sure to fire it with 'uv run python [typer-file]' instead of 'python'. You'll see the typer-file name in the prompt.</instruction>
+    <instruction>Output format: 'uv run python [typer-file] [command] [args]'. The typer-file (e.g. commands/template.py or commands/devtools.py) is shown in the headers above each command block. Use the correct file for each command.</instruction>
     <instruction>If the natural-language-request does not ask for a command (or is something nonsense) that is not in the typer-commands file, respond with an empty string.</instruction>
     <instruction>If relevant to the natural-language-request, use the context-files to aid your decision making.</instruction>
     <instruction>If relevant to the natural-language-request, use the scratch-pad to aid your decision making. You can expect useful information in the scratch-pad especially if explicitly asked referenced in the natural-language-request.</instruction>

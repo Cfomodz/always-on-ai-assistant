@@ -5,6 +5,7 @@ from modules.base_assistant import PlainAssistant
 from modules.typer_agent import TyperAgent
 from modules.router import classify
 from modules.utils import create_session_logger_id, setup_logging
+from modules.tools_registry import get_tools_registry, filter_source_by_enabled
 import typer
 import os
 
@@ -61,12 +62,12 @@ def awaken(
     # PlainAssistant for conversation
     conversation_agent = PlainAssistant(logger, session_id)
 
-    # -- Load typer commands source for the router (both template + devtools) --
-    typer_commands_source = ""
-    for tf in [typer_file, DEVTOOLS_FILE]:
-        if os.path.exists(tf):
-            with open(tf, "r") as f:
-                typer_commands_source += f"# --- {tf} ---\n" + f.read() + "\n"
+    # -- Load tools registry and filter to enabled tools only --
+    _, _, enabled_tools = get_tools_registry()
+    typer_files = [f for f in [typer_file, DEVTOOLS_FILE] if os.path.exists(f)]
+    typer_commands_source = filter_source_by_enabled(typer_files, enabled_tools)
+    if not typer_commands_source:
+        typer_commands_source = "# No enabled tools. Add tools_config.yml and enable tools."
 
     # -- STT setup --
     whisper_model = get_config(f"{config_key}.whisper_model") or "tiny.en"
@@ -114,6 +115,8 @@ def awaken(
                     scratchpad_resolved,
                     context_files,
                     mode,
+                    filtered_commands_source=typer_commands_source,
+                    typer_files=typer_files,
                 )
                 print(f"  Command output:\n{output}")
             else:
