@@ -12,3 +12,11 @@ base_assistant:
   brain: deepseek-v3 # deepseek-v3, ollama:phi4, ollama:<any installed model>
   voice: local # local, elevenlabs
   elevenlabs_voice: WejK3H1m7MI9CHnIjW9K
+unified_assistant:
+  assistant_name: Jarvis
+  human_companion_name: David
+  ears: realtime-stt
+  brain: deepseek-v3
+  voice: elevenlabs # local, elevenlabs
+  elevenlabs_voice: WejK3H1m7MI9CHnIjW9K
+  whisper_model: tiny.en # tiny.en (fast), small.en (accurate)

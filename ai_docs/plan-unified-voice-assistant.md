@@ -100,3 +100,8 @@ Current default is `tiny.en` which is fast but inaccurate. Since the target has 
 - [x] **Web search module** (`modules/web_search.py`) -- DuckDuckGo-backed `search()`, `search_news()`, `get_answer()` functions. No API key required.
 - [x] **Web search Typer commands** (`commands/template.py`) -- `web-search`, `web-news`, `web-answer` commands added.
 - [x] **Dependency** -- `duckduckgo-search>=7.0.0` added to `pyproject.toml`.
+- [x] **Phase 1: Unified Entry Point + Intent Router**
+  - `modules/router.py` -- DeepSeek-based intent classifier (`command` vs `conversation`).
+  - `main_unified.py` -- Single entry point: STT -> trigger word -> router -> TyperAgent or PlainAssistant.
+  - `assistant_config.yml` -- Added `unified_assistant` section (name: Jarvis).
+  - `jarvis.sh` -- Launcher script for unified mode.
