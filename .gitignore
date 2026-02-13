@@ -199,3 +199,5 @@ realtimesst.log
 *.db
 
 report.json
+
+tools_state.json

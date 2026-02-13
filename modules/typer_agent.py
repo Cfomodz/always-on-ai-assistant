@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 import os
 import logging
 from datetime import datetime
@@ -65,13 +65,18 @@ class TyperAgent:
         scratchpad: str,
         context_files: List[str],
         prompt_text: str,
+        filtered_commands_source: Optional[str] = None,
     ) -> str:
         """Build and format the prompt template with current state"""
         try:
-            # Load typer file
-            self.logger.info("📂 Loading typer file...")
-            with open(typer_file, "r") as f:
-                typer_content = f.read()
+            # Use filtered commands if provided, else load typer file
+            if filtered_commands_source:
+                self.logger.info("📂 Using filtered enabled commands...")
+                typer_content = filtered_commands_source
+            else:
+                self.logger.info("📂 Loading typer file...")
+                with open(typer_file, "r") as f:
+                    typer_content = f.read()
 
             # Load scratchpad file
             self.logger.info("📝 Loading scratchpad file...")
@@ -126,20 +131,28 @@ class TyperAgent:
         scratchpad: str,
         context_files: List[str],
         mode: str,
+        filtered_commands_source: Optional[str] = None,
+        typer_files: Optional[List[str]] = None,
     ) -> str:
         """Process text input and handle based on execution mode"""
         try:
             # Build fresh prompt with current state
             formatted_prompt = self.build_prompt(
-                typer_file, scratchpad, context_files, text
+                typer_file, scratchpad, context_files, text,
+                filtered_commands_source=filtered_commands_source,
             )
 
             # Generate command using DeepSeek
             self.logger.info("🤖 Processing text with DeepSeek...")
-            prefix = f"uv run python {typer_file}"
+            if filtered_commands_source and typer_files:
+                # Multiple files: prefix allows LLM to choose file
+                prefix = "uv run python "
+            else:
+                prefix = f"uv run python {typer_file}"
             command = prefix_prompt(prompt=formatted_prompt, prefix=prefix)
 
-            if command == prefix.strip():
+            remainder = command[len(prefix):].strip() if len(command) > len(prefix) else ""
+            if command == prefix.strip() or not remainder:
                 self.logger.info(f"🤖 Command not found for '{text}'")
                 self.speak("I couldn't find that command")
                 return "Command not found"

@@ -816,8 +816,143 @@ def inspect_task(
 # Web Search commands
 # -----------------------------------------------------
 from modules.web_search import search as web_search_fn, search_news, get_answer
+from modules import api_integrations
 
 
+# -----------------------------------------------------
+# Weather (Open-Meteo)
+# -----------------------------------------------------
+@app.command()
+def weather(
+    location: str = typer.Argument(None, help="City or place name (e.g. London, Tokyo)"),
+    latitude: float = typer.Option(None, "--lat", help="Latitude (optional with location)"),
+    longitude: float = typer.Option(None, "--lon", help="Longitude (optional with location)"),
+):
+    """
+    Gets weather forecast from Open-Meteo for a location or coordinates.
+    """
+    lat = latitude if latitude is not None else 40.7128
+    lon = longitude if longitude is not None else -74.0060
+    result = api_integrations.open_meteo_weather(latitude=lat, longitude=lon, location=location)
+    typer.echo(result)
+    return result
+
+
+# -----------------------------------------------------
+# Datamuse words
+# -----------------------------------------------------
+@app.command()
+def datamuse_words(
+    means_like: str = typer.Option(None, "--ml", "--means-like", help="Words with similar meaning"),
+    sounds_like: str = typer.Option(None, "--sl", "--sounds-like", help="Words that sound similar"),
+    spelled_like: str = typer.Option(None, "--sp", "--spelled-like", help="Words spelled similarly"),
+    related_to: str = typer.Option(None, "--rel", "--related", help="Words related to this"),
+    max_results: int = typer.Option(10, "--max", help="Max results"),
+):
+    """
+    Queries Datamuse API for words by meaning, sound, spelling, or relation.
+    """
+    result = api_integrations.datamuse_words(
+        means_like=means_like,
+        sounds_like=sounds_like,
+        spelled_like=spelled_like,
+        related_to=related_to,
+        max_results=max_results,
+    )
+    typer.echo(result)
+    return result
+
+
+# -----------------------------------------------------
+# DeepL translation
+# -----------------------------------------------------
+@app.command()
+def translate(
+    text: str = typer.Argument(..., help="Text to translate"),
+    target_lang: str = typer.Option("EN", "--to", help="Target language code (e.g. EN, DE, ES)"),
+    source_lang: str = typer.Option(None, "--from-lang", help="Source language code (auto if omitted)"),
+):
+    """
+    Translates text using DeepL. Requires DEEPL_API_KEY.
+    """
+    result = api_integrations.deepl_translate(text, target_lang=target_lang, source_lang=source_lang)
+    typer.echo(result)
+    return result
+
+
+# -----------------------------------------------------
+# Wolfram Alpha
+# -----------------------------------------------------
+@app.command()
+def wolfram(
+    query: str = typer.Argument(..., help="Query to send to Wolfram Alpha"),
+):
+    """
+    Queries Wolfram Alpha for computation/knowledge. Requires WOLFRAM_APP_ID.
+    """
+    result = api_integrations.wolfram_query(query)
+    typer.echo(result)
+    return result
+
+
+# -----------------------------------------------------
+# Todoist
+# -----------------------------------------------------
+@app.command()
+def todoist_list(
+    project_id: str = typer.Option(None, "--project", help="Filter by project ID"),
+):
+    """
+    Lists Todoist tasks. Requires TODOIST_API_TOKEN.
+    """
+    result = api_integrations.todoist_list_tasks(project_id=project_id)
+    typer.echo(result)
+    return result
+
+
+@app.command()
+def todoist_add(
+    content: str = typer.Argument(..., help="Task content"),
+    project_id: str = typer.Option(None, "--project", help="Project ID"),
+):
+    """
+    Adds a Todoist task. Requires TODOIST_API_TOKEN.
+    """
+    result = api_integrations.todoist_add_task(content, project_id=project_id)
+    typer.echo(result)
+    return result
+
+
+# -----------------------------------------------------
+# Local Plane / n8n
+# -----------------------------------------------------
+@app.command()
+def plane_status(
+    base_url: str = typer.Option("http://localhost:8000", "--url", help="Plane API base URL"),
+):
+    """
+    Checks status of local Plane API instance.
+    """
+    result = api_integrations.plane_status(base_url=base_url)
+    typer.echo(result)
+    return result
+
+
+@app.command()
+def n8n_status(
+    base_url: str = typer.Option("http://localhost:5678", "--url", help="n8n base URL"),
+):
+    """
+    Checks status of local n8n instance.
+    """
+    result = api_integrations.n8n_status(base_url=base_url)
+    typer.echo(result)
+    return result
+
+
+# -----------------------------------------------------
+# Web Search commands
+# -----------------------------------------------------
 @app.command()
 def web_search(
     query: str = typer.Argument(..., help="Search query"),
