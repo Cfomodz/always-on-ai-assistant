@@ -813,6 +813,50 @@ def inspect_task(
 
 
 # -----------------------------------------------------
+# Web Search commands
+# -----------------------------------------------------
+from modules.web_search import search as web_search_fn, search_news, get_answer
+
+
+@app.command()
+def web_search(
+    query: str = typer.Argument(..., help="Search query"),
+    max_results: int = typer.Option(5, "--max-results", help="Maximum number of results"),
+):
+    """
+    Searches the web using DuckDuckGo and returns results.
+    """
+    result = web_search_fn(query, max_results=max_results)
+    typer.echo(result)
+    return result
+
+
+@app.command()
+def web_news(
+    query: str = typer.Argument(..., help="News search query"),
+    max_results: int = typer.Option(5, "--max-results", help="Maximum number of results"),
+):
+    """
+    Searches DuckDuckGo news for a query.
+    """
+    result = search_news(query, max_results=max_results)
+    typer.echo(result)
+    return result
+
+
+@app.command()
+def web_answer(
+    query: str = typer.Argument(..., help="Question to look up"),
+):
+    """
+    Gets an instant answer from DuckDuckGo, falls back to web search.
+    """
+    result = get_answer(query)
+    typer.echo(result)
+    return result
+
+
+# -----------------------------------------------------
 # Entry point
 # -----------------------------------------------------
 def main():

@@ -23,4 +23,5 @@ dependencies = [
     "elevenlabs>=1.50.3",
     "realtimetts[system]==0.4.40",
     "pyttsx3>=2.98",
+    "duckduckgo-search>=7.0.0",
 ]
