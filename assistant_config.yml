@@ -20,3 +20,13 @@ unified_assistant:
   voice: elevenlabs # local, elevenlabs
   elevenlabs_voice: WejK3H1m7MI9CHnIjW9K
   whisper_model: small.en # tiny.en (fast), small.en (accurate)
+scholarship_assistant:
+  assistant_name: Scholar
+  human_companion_name: David
+  brain: deepseek-v3
+  voice: elevenlabs
+  elevenlabs_voice: UQoLnPXvf18gaKpLzfb8
+  elevenlabs_model: eleven_flash_v2_5
+  whisper_model: base.en # base.en (fast), small.en (accurate)
+  server_host: 127.0.0.1
+  server_port: 8741
