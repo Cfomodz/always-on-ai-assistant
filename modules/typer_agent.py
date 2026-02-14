@@ -3,6 +3,7 @@ import os
 import logging
 from datetime import datetime
 from modules.assistant_config import get_config
+from modules.tts_cache import generate_with_cache
 from modules.utils import (
     build_file_name_session,
     create_session_logger_id,
@@ -226,23 +227,25 @@ class TyperAgent:
         self.logger.info(f"🤖 Response: '{response}'")
         self.speak(response)
 
-    def speak(self, text: str):
+    def speak(self, text: str, cache: bool = False):
+        """
+        Speak text via ElevenLabs TTS.
 
+        Args:
+            text: The text to speak.
+            cache: If True, cache audio to disk for reuse on identical requests.
+        """
         start_time = time.time()
         model = "eleven_flash_v2_5"
-        # model="eleven_flash_v2"
-        # model = "eleven_turbo_v2"
-        # model = "eleven_turbo_v2_5"
-        # model="eleven_multilingual_v2"
         voice = get_config("typer_assistant.elevenlabs_voice")
 
-        audio_generator = self.elevenlabs_client.generate(
+        audio_bytes = generate_with_cache(
+            client=self.elevenlabs_client,
             text=text,
             voice=voice,
             model=model,
-            stream=False,
+            cache=cache,
         )
-        audio_bytes = b"".join(list(audio_generator))
         duration = time.time() - start_time
         self.logger.info(f"Model {model} completed tts in {duration:.2f} seconds")
         play(audio_bytes)

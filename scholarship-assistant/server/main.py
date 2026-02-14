@@ -34,7 +34,17 @@ from server.history import (
     check_duplicate,
     extract_scholarship_info,
 )
-from server.voice import speak, ask_and_listen, confirm
+from server.voice import (
+    speak,
+    ask_and_listen,
+    confirm,
+    speak_acknowledgment,
+    speak_processing,
+    speak_completion,
+    speak_error,
+    speak_startup,
+    warmup_cache,
+)
 from server.essay_handler import handle_essay
 from server.interview import run_interview
 
@@ -82,6 +92,18 @@ class DedupCheck(BaseModel):
 async def lifespan(app: FastAPI):
     ensure_data_dir()
     logger.info(f"Scholarship Assistant backend starting on {HOST}:{PORT}")
+
+    # Warm up TTS cache in background so fillers are instant
+    def _warmup():
+        try:
+            warmup_cache()
+            speak_startup()
+        except Exception as e:
+            logger.warning(f"TTS cache warmup failed: {e}")
+
+    warmup_thread = threading.Thread(target=_warmup, daemon=True)
+    warmup_thread.start()
+
     yield
     logger.info("Scholarship Assistant backend shutting down")
 
@@ -106,10 +128,23 @@ app.add_middleware(
 
 @app.get("/status")
 async def status():
+    from modules.tts_cache import cache_stats
     return {
         "status": "ok",
         "profile_exists": profile_exists(),
+        "tts_cache": cache_stats(),
     }
+
+
+@app.post("/cache/warmup")
+async def cache_warmup_endpoint():
+    """Manually trigger TTS cache warmup for all filler/acknowledgment audio."""
+    def _warmup():
+        return warmup_cache()
+
+    loop = asyncio.get_event_loop()
+    count = await loop.run_in_executor(None, _warmup)
+    return {"status": "ok", "lines_cached": count}
 
 
 @app.get("/profile")
@@ -267,11 +302,13 @@ async def websocket_endpoint(ws: WebSocket):
                     result = {"field_id": field_id, "value": filled_value, "status": "filled"}
 
             elif action == "essay":
-                # Essay flow
+                # Play acknowledgment so user knows we're starting the essay flow
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, speak_acknowledgment)
+
                 def _do_essay():
                     return handle_essay(field_id, label)
 
-                loop = asyncio.get_event_loop()
                 essay_text = await loop.run_in_executor(None, _do_essay)
 
                 if essay_text:
@@ -283,6 +320,7 @@ async def websocket_endpoint(ws: WebSocket):
                     stats = data.get("stats", {})
                     filled = stats.get("filled", 0)
                     manual = stats.get("manual", 0)
+                    speak_completion()
                     speak(
                         f"All done. {filled} fields filled, "
                         f"{manual} need your attention."

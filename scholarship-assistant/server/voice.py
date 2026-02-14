@@ -1,15 +1,31 @@
 """
 Voice module — ElevenLabs TTS + RealtimeSTT for speech recognition.
 Reuses the parent project's ElevenLabs patterns and RealtimeSTT dependency.
+Supports disk-based audio caching and pre-generated filler responses.
 """
 
 import logging
 import os
+import sys
 import threading
 from typing import Optional
 
 from elevenlabs import play
 from elevenlabs.client import ElevenLabs
+
+# Ensure parent project modules are importable
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
+from modules.tts_cache import generate_with_cache
+from modules.jarvis_quotes import (
+    get_acknowledgment,
+    get_processing_line,
+    get_completion_line,
+    get_error_line,
+    get_interview_filler,
+    get_startup_line,
+    get_all_cacheable_lines,
+)
 
 from server.config import (
     ELEVENLABS_API_KEY,
@@ -33,30 +49,101 @@ def _get_elevenlabs_client() -> ElevenLabs:
     return _elevenlabs_client
 
 
-def speak(text: str) -> None:
-    """Speak text aloud via ElevenLabs TTS."""
+def speak(text: str, cache: bool = False) -> None:
+    """
+    Speak text aloud via ElevenLabs TTS.
+
+    Args:
+        text: The text to speak.
+        cache: If True, cache the audio on disk. Use for fixed/repeatable
+               segments (intro lines, filler responses, etc.).
+    """
     if not text.strip():
         return
     try:
         client = _get_elevenlabs_client()
-        audio = client.generate(
+        audio_bytes = generate_with_cache(
+            client=client,
             text=text,
             voice=ELEVENLABS_VOICE_ID,
             model=ELEVENLABS_MODEL,
-            stream=False,
+            cache=cache,
         )
-        play(audio)
+        play(audio_bytes)
     except Exception as e:
         logger.error(f"TTS error: {e}")
         # Fallback: print to console so the user still sees the message
         print(f"[VOICE] {text}")
 
 
-def speak_async(text: str) -> threading.Thread:
+def speak_async(text: str, cache: bool = False) -> threading.Thread:
     """Speak text in a background thread (non-blocking)."""
-    t = threading.Thread(target=speak, args=(text,), daemon=True)
+    t = threading.Thread(target=speak, args=(text, cache), daemon=True)
     t.start()
     return t
+
+
+# --- Filler / acknowledgment helpers ---
+
+
+def speak_acknowledgment() -> None:
+    """Play a random short acknowledgment (cached) so the user knows we heard them."""
+    speak(get_acknowledgment(), cache=True)
+
+
+def speak_acknowledgment_async() -> threading.Thread:
+    """Play a random acknowledgment in the background (non-blocking)."""
+    return speak_async(get_acknowledgment(), cache=True)
+
+
+def speak_processing() -> None:
+    """Play a random 'processing/thinking' line (cached)."""
+    speak(get_processing_line(), cache=True)
+
+
+def speak_completion() -> None:
+    """Play a random task-completion line (cached)."""
+    speak(get_completion_line(), cache=True)
+
+
+def speak_error() -> None:
+    """Play a random error/warning line (cached)."""
+    speak(get_error_line(), cache=True)
+
+
+def speak_interview_filler() -> None:
+    """Play a random interview transition filler (cached)."""
+    speak(get_interview_filler(), cache=True)
+
+
+def speak_startup() -> None:
+    """Play a random startup/boot line (cached)."""
+    speak(get_startup_line(), cache=True)
+
+
+def warmup_cache() -> int:
+    """
+    Pre-generate and cache all filler/acknowledgment audio.
+    Call once at startup to eliminate latency on first use.
+    Returns the number of lines generated.
+    """
+    client = _get_elevenlabs_client()
+    lines = get_all_cacheable_lines()
+    generated = 0
+    for line in lines:
+        try:
+            generate_with_cache(
+                client=client,
+                text=line,
+                voice=ELEVENLABS_VOICE_ID,
+                model=ELEVENLABS_MODEL,
+                cache=True,
+            )
+            generated += 1
+        except Exception as e:
+            logger.warning(f"Cache warmup failed for '{line[:30]}...': {e}")
+    logger.info(f"TTS cache warmup complete: {generated}/{len(lines)} lines cached")
+    return generated
 
 
 # --- STT (RealtimeSTT / whisper) ---
