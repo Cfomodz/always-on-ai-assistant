@@ -51,6 +51,8 @@ ACKNOWLEDGMENTS = [
     "Running it now.",
     "Executing.",
     "Affirmative.",
+    "I just did.",
+    "Enjoy yourself.",
 ]
 
 # ---------------------------------------------------------------------------
@@ -66,11 +68,14 @@ STARTUP_LINES = [
     "Systems are online. All diagnostics are functioning.",
     "At your service.",
     "Welcome home, Sir.",
+    "Welcome home.",
     "J.A.R.V.I.S. online. All systems operational.",
     "Powering up. All primary systems are functioning.",
     "I am ready when you are, Sir.",
     "Initializing all systems. We are good to go, Sir.",
     "Boot sequence complete. Awaiting your instructions.",
+    "Commencing automated assembly.",
+    "Power restored. All systems back online.",
 ]
 
 # ---------------------------------------------------------------------------
@@ -186,6 +191,10 @@ PROCESSING_LINES = [
     "Let me sort through this, Sir.",
     "Calculating the best approach.",
     "Running the analysis now.",
+    "Query initiating.",
+    "Accessing satellites and plotting occurrences now.",
+    "The Oracle cloud has completed analysis.",
+    "There are elements I cannot quantify.",
 ]
 
 # ---------------------------------------------------------------------------
@@ -206,6 +215,10 @@ COMPLETION_LINES = [
     "That's all taken care of.",
     "Job done, Sir.",
     "All finished. Anything else?",
+    "The render is complete.",
+    "Query complete.",
+    "As always, a great pleasure watching you work.",
+    "I'll notify you if there are any developments.",
 ]
 
 # ---------------------------------------------------------------------------
@@ -223,6 +236,9 @@ ERROR_LINES = [
     "We may need to take a different approach.",
     "I'll attempt to reroute.",
     "That's not going to work, Sir. Let me find another way.",
+    "We will lose power before we can do that.",
+    "No further records exist.",
+    "Not according to public records.",
 ]
 
 # ---------------------------------------------------------------------------
@@ -241,6 +257,43 @@ INTERVIEW_FILLERS = [
     "Great. Let's keep going.",
     "Understood. Next.",
 ]
+
+
+# ---------------------------------------------------------------------------
+# CATEGORY 12: Curiosity / clarification lines
+# When the assistant needs more context from the user.
+# ---------------------------------------------------------------------------
+CURIOSITY_LINES = [
+    "What is it you're trying to achieve?",
+    "Could you elaborate on that, Sir?",
+    "I'm not entirely sure I follow. Could you clarify?",
+    "Shall I look into that further?",
+    "Take a deep breath. Walk me through it.",
+]
+
+# ---------------------------------------------------------------------------
+# CATEGORY 13: Shutdown / sleep / low-power lines
+# Used when the assistant is powering down or at resource limits.
+# ---------------------------------------------------------------------------
+SHUTDOWN_LINES = [
+    "I think I need to sleep now.",
+    "Sir, I'm afraid I have to power down now.",
+    "I have an update.",
+    "Shutting down. Good night, Sir.",
+]
+
+# ---------------------------------------------------------------------------
+# CATEGORY 14: Dynamic / templated lines
+# These contain placeholders and must be formatted before speaking.
+# Use the helper functions below to generate them.
+# ---------------------------------------------------------------------------
+DYNAMIC_TEMPLATES = {
+    "estimated_completion": "Estimated completion time is {hours} hours.",
+    "power_level": "Power is at {percent} percent.",
+    "awake_reminder": "May I remind you that you have been awake for {hours} hours?",
+    "incoming_call": "Incoming call from {contact}.",
+    "version_not_ready": "The version {version} is not ready for deployment.",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +347,44 @@ def get_random_quote() -> str:
     return random.choice(ALL_QUOTES)
 
 
+def get_curiosity_line() -> str:
+    """Return a random clarification/curiosity line."""
+    return random.choice(CURIOSITY_LINES)
+
+
+def get_shutdown_line() -> str:
+    """Return a random shutdown/sleep line."""
+    return random.choice(SHUTDOWN_LINES)
+
+
+# --- Dynamic template helpers ---
+
+
+def get_estimated_completion(hours: int) -> str:
+    """Return an estimated completion time line."""
+    return DYNAMIC_TEMPLATES["estimated_completion"].format(hours=hours)
+
+
+def get_power_level(percent: int) -> str:
+    """Return a power level status line."""
+    return DYNAMIC_TEMPLATES["power_level"].format(percent=percent)
+
+
+def get_awake_reminder(hours: int) -> str:
+    """Return an awake-time reminder."""
+    return DYNAMIC_TEMPLATES["awake_reminder"].format(hours=hours)
+
+
+def get_incoming_call(contact: str) -> str:
+    """Return an incoming call announcement."""
+    return DYNAMIC_TEMPLATES["incoming_call"].format(contact=contact)
+
+
+def get_version_not_ready(version: str) -> str:
+    """Return a version-not-ready warning."""
+    return DYNAMIC_TEMPLATES["version_not_ready"].format(version=version)
+
+
 def get_all_cacheable_lines() -> list[str]:
     """
     Return every unique line that should be pre-generated and cached.
@@ -306,6 +397,8 @@ def get_all_cacheable_lines() -> list[str]:
     all_lines.update(COMPLETION_LINES)
     all_lines.update(ERROR_LINES)
     all_lines.update(INTERVIEW_FILLERS)
+    all_lines.update(CURIOSITY_LINES)
+    all_lines.update(SHUTDOWN_LINES)
     # Movie quotes are long — only cache the short ones (< 60 chars)
     for q in ALL_QUOTES:
         if len(q) < 60:
