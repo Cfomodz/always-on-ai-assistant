@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 
 from server.profile_manager import load_profile, add_essay
-from server.voice import speak, ask_and_listen, listen
+from server.voice import speak, ask_and_listen, listen, speak_acknowledgment
 from server.cleanup import clean_transcription
 
 logger = logging.getLogger("scholarship-assistant")
@@ -89,6 +89,7 @@ def handle_essay(field_id: str, label: str) -> Optional[str]:
         response_lower = response.lower().strip().rstrip(".")
 
         if "reuse" in response_lower or "use" in response_lower or "same" in response_lower:
+            speak_acknowledgment()
             logger.info(f"Essay: reusing previous for field {field_id}")
             return prev_text
         elif "fresh" in response_lower or "new" in response_lower or "start over" in response_lower:

@@ -7,7 +7,7 @@ import logging
 from typing import Callable, Optional
 
 from server.profile_manager import load_profile, save_profile, profile_exists, set_field
-from server.voice import speak, ask_and_listen, confirm
+from server.voice import speak, ask_and_listen, confirm, speak_interview_filler
 
 logger = logging.getLogger("scholarship-assistant")
 
@@ -133,7 +133,8 @@ def run_interview(
         "Hi! I'm your scholarship assistant. I'm going to ask you a series of "
         "questions to build your profile. This will save you a ton of time when "
         "filling out scholarship applications later. You can say 'skip' or 'pass' "
-        "on any question you'd rather not answer right now. Let's get started."
+        "on any question you'd rather not answer right now. Let's get started.",
+        cache=True,
     )
 
     for dot_key, question, is_optional, is_sensitive in INTERVIEW_QUESTIONS:
@@ -176,6 +177,9 @@ def run_interview(
         save_profile(profile)
         logger.info(f"Interview: saved {dot_key} = {value}")
 
+        # Play a short filler so the user knows we're moving on
+        speak_interview_filler()
+
         if on_field_complete:
             on_field_complete(dot_key, value)
 
@@ -185,7 +189,8 @@ def run_interview(
         "When you click the scholarship assistant button on an application page, "
         "I'll use this information to fill in forms for you automatically. "
         "If I ever encounter a question I don't have an answer for, I'll ask you "
-        "and remember your answer for next time."
+        "and remember your answer for next time.",
+        cache=True,
     )
 
     return profile
