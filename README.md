@@ -3,7 +3,7 @@
 >
 > Checkout [the demo](https://youtu.be/zoBwIi4ZiTA) where we walk through using this always-on-ai-assistant.
 
-![ada-deepseek-v3.png](./images/ada-deepseek-v3.png)
+<img width="1080" alt="Gemini_Generated_Image_a8sl2ha8sl2ha8sl" src="https://github.com/user-attachments/assets/7a6c9df0-9907-4512-8561-362209ffff46" />
 
 ## Setup
 - `cp .env.sample .env`
