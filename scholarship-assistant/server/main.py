@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -118,7 +119,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Tampermonkey runs from any origin
+    allow_origins=[],  # Tampermonkey bypasses CORS; no other origins allowed
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -203,16 +204,17 @@ async def analyze(body: AnalyzeRequest):
     page_ctx = body.page_context.model_dump()
 
     # Step 1: Extract scholarship info for dedup
-    scholarship_info = extract_scholarship_info(page_ctx)
+    scholarship_info = await run_in_threadpool(extract_scholarship_info, page_ctx)
 
     # Step 2: Dedup check
-    duplicate = check_duplicate(
+    duplicate = await run_in_threadpool(
+        check_duplicate,
         scholarship_info.get("scholarship_name", ""),
         scholarship_info.get("organization", ""),
     )
 
     # Step 3: Field matching via DeepSeek
-    match_result = match_fields(fields_raw)
+    match_result = await run_in_threadpool(match_fields, fields_raw)
     categorized = categorize_matches(match_result)
 
     return {

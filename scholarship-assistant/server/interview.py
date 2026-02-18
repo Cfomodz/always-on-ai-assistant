@@ -79,7 +79,7 @@ INTERVIEW_QUESTIONS = [
     ("extracurricular.organizational_memberships", "Are you a member of any organizations or associations?", True, False),
 ]
 
-SKIP_PHRASES = {"skip", "pass", "next", "no", "nope", "skip it", "pass on that", "i'd rather not"}
+SKIP_PHRASES = {"skip", "pass", "next", "skip it", "pass on that", "i'd rather not"}
 
 
 def _is_skip(response: str) -> bool:
@@ -137,16 +137,34 @@ def run_interview(
         cache=True,
     )
 
+    # Keys that should not be cleaned up (factual data)
+    NO_CLEANUP_KEYS = {
+        "personal.email",
+        "personal.phone",
+        "personal.ssn_last4",
+        "education_current.current_gpa",
+        "education_current.student_id",
+        "personal.date_of_birth",
+        "education_current.expected_enrollment_date",
+        "education_current.expected_graduation_date",
+        "education_history.high_school.graduation_year",
+        "education_history.high_school.gpa",
+        "financial.efc",
+        "financial.household_income_range",
+    }
+
     for dot_key, question, is_optional, is_sensitive in INTERVIEW_QUESTIONS:
         logger.info(f"Interview: asking {dot_key}")
 
+        cleanup = dot_key not in NO_CLEANUP_KEYS
+
         if is_sensitive and is_optional:
             # Give extra context for sensitive optional fields
-            response = ask_and_listen(question)
+            response = ask_and_listen(question, cleanup=cleanup)
         elif is_optional:
-            response = ask_and_listen(question + " You can say skip if you'd rather not answer.")
+            response = ask_and_listen(question + " You can say skip if you'd rather not answer.", cleanup=cleanup)
         else:
-            response = ask_and_listen(question)
+            response = ask_and_listen(question, cleanup=cleanup)
 
         if not response or _is_skip(response):
             logger.info(f"Interview: skipped {dot_key}")

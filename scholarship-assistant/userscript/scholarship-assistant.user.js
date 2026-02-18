@@ -443,10 +443,12 @@
   }
 
   function waitForWsMessage(ws) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       ws.onmessage = (event) => {
         resolve(JSON.parse(event.data));
       };
+      ws.onerror = (err) => reject(new Error("WebSocket error"));
+      ws.onclose = () => reject(new Error("WebSocket closed"));
     });
   }
 
@@ -519,11 +521,14 @@
     // Make draggable
     let isDragging = false;
     let dragOffsetX, dragOffsetY;
+    let startX, startY;
 
     const btn = document.getElementById("sa-trigger");
 
     container.addEventListener("mousedown", (e) => {
       isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
       dragOffsetX = e.clientX - container.getBoundingClientRect().left;
       dragOffsetY = e.clientY - container.getBoundingClientRect().top;
     });
@@ -539,12 +544,18 @@
     document.addEventListener("mouseup", (e) => {
       if (isDragging) {
         isDragging = false;
-        // Only trigger click if the mouse didn't move much (not a drag)
       }
     });
 
     btn.addEventListener("click", (e) => {
-      if (isDragging) return;
+      // Check if mouse moved significantly (drag vs click)
+      const dist = Math.sqrt(
+        Math.pow(e.clientX - startX, 2) + Math.pow(e.clientY - startY, 2)
+      );
+      if (dist > 5) return;
+
+      if (btn.classList.contains("loading")) return;
+
       btn.classList.add("loading");
       runFillPipeline().finally(() => {
         btn.classList.remove("loading");
