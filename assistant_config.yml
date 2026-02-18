@@ -4,19 +4,29 @@ typer_assistant:
   ears: realtime-stt
   brain: deepseek-v3
   voice: elevenlabs # local, elevenlabs
-  elevenlabs_voice: WejK3H1m7MI9CHnIjW9K
+  elevenlabs_voice: UQoLnPXvf18gaKpLzfb8
 base_assistant:
   assistant_name: Ada
   human_companion_name: David
   ears: realtime-stt
   brain: deepseek-v3 # deepseek-v3, ollama:phi4, ollama:<any installed model>
   voice: local # local, elevenlabs
-  elevenlabs_voice: WejK3H1m7MI9CHnIjW9K
+  elevenlabs_voice: UQoLnPXvf18gaKpLzfb8
 unified_assistant:
   assistant_name: Jarvis
   human_companion_name: David
   ears: realtime-stt
   brain: deepseek-v3
   voice: elevenlabs # local, elevenlabs
-  elevenlabs_voice: WejK3H1m7MI9CHnIjW9K
+  elevenlabs_voice: UQoLnPXvf18gaKpLzfb8
   whisper_model: small.en # tiny.en (fast), small.en (accurate)
+scholarship_assistant:
+  assistant_name: Scholar
+  human_companion_name: David
+  brain: deepseek-v3
+  voice: elevenlabs
+  elevenlabs_voice: UQoLnPXvf18gaKpLzfb8
+  elevenlabs_model: eleven_flash_v2_5
+  whisper_model: base.en # base.en (fast), small.en (accurate)
+  server_host: 127.0.0.1
+  server_port: 8741

@@ -8,9 +8,16 @@ import difflib
 import random
 import string
 import shutil
+import sys
+from pathlib import Path
 from datetime import datetime
 
 import yaml
+
+# Ensure project root is on path so `modules` can be imported when run as a script
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
 app = typer.Typer()
 

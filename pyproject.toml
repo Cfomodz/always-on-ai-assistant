@@ -19,10 +19,24 @@ dependencies = [
     "typer>=0.13.1",
     "rich>=13.9.4",
     "realtimestt>=0.3.93",
+    "ctranslate2>=4.6.0",
     "dpath>=2.2.0",
     "elevenlabs>=1.50.3",
     "realtimetts[system]==0.4.40",
     "pyttsx3>=2.98",
     "duckduckgo-search>=7.0.0",
     "httpx>=0.27.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "thefuzz[speedup]>=0.22.1",
+    "sounddevice>=0.5.0",
+]
+
+[tool.pytest.ini_options]
+# importlib mode avoids __init__.py namespace collisions between tests/ and
+# scholarship-assistant/tests/ when running the full test suite in one pass.
+addopts = "--import-mode=importlib --ignore=tests/deepseek_test.py"
+testpaths = [
+    "tests",
+    "scholarship-assistant/tests",
 ]

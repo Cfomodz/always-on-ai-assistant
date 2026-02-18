@@ -4,6 +4,7 @@ import os
 from modules.deepseek import conversational_prompt as deepseek_conversational_prompt
 from modules.ollama import conversational_prompt as ollama_conversational_prompt
 from modules.utils import build_file_name_session
+from modules.tts_cache import generate_with_cache
 from RealtimeTTS import TextToAudioStream, SystemEngine
 from elevenlabs import play
 from elevenlabs.client import ElevenLabs
@@ -78,8 +79,15 @@ class PlainAssistant:
             self.logger.error(f"❌ Error occurred: {str(e)}")
             raise
 
-    def speak(self, text: str):
-        """Convert text to speech using configured engine"""
+    def speak(self, text: str, cache: bool = False):
+        """
+        Convert text to speech using configured engine.
+
+        Args:
+            text: The text to speak.
+            cache: If True and using ElevenLabs, cache audio to disk.
+                   Use for fixed/repeatable segments.
+        """
         try:
             self.logger.info(f"🔊 Speaking: {text}")
 
@@ -92,13 +100,14 @@ class PlainAssistant:
                 self.stream.play()
 
             elif self.voice_type == "elevenlabs":
-                audio = self.elevenlabs_client.generate(
+                audio_bytes = generate_with_cache(
+                    client=self.elevenlabs_client,
                     text=text,
                     voice=self.elevenlabs_voice,
                     model="eleven_turbo_v2",
-                    stream=False,
+                    cache=cache,
                 )
-                play(audio)
+                play(audio_bytes)
 
             self.logger.info(f"🔊 Spoken: {text}")
 
