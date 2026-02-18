@@ -17,8 +17,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-# Ensure parent project is importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+# Ensure the scholarship-assistant package root is importable so that
+# "from server.X import ..." works whether the file is run directly or
+# imported as part of the project.
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from server.config import HOST, PORT, ensure_data_dir
 from server.profile_manager import (

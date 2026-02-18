@@ -93,8 +93,19 @@ def check_duplicate(
             organization.lower(), record.get("organization", "").lower()
         )
 
-        # Weight: name matters more than org
-        combined_score = (name_score * 0.6 + org_score * 0.4) / 100.0
+        # When one identifier is missing, base the score solely on the
+        # available field so that partial-data duplicates are still caught.
+        has_name = bool(scholarship_name and record.get("scholarship_name"))
+        has_org = bool(organization and record.get("organization"))
+
+        if has_name and has_org:
+            combined_score = (name_score * 0.6 + org_score * 0.4) / 100.0
+        elif has_name:
+            combined_score = name_score / 100.0
+        elif has_org:
+            combined_score = org_score / 100.0
+        else:
+            combined_score = 0.0
 
         if combined_score >= threshold:
             logger.info(
