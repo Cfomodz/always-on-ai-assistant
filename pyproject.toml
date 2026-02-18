@@ -31,3 +31,12 @@ dependencies = [
     "thefuzz[speedup]>=0.22.1",
     "sounddevice>=0.5.0",
 ]
+
+[tool.pytest.ini_options]
+# importlib mode avoids __init__.py namespace collisions between tests/ and
+# scholarship-assistant/tests/ when running the full test suite in one pass.
+addopts = "--import-mode=importlib --ignore=tests/deepseek_test.py"
+testpaths = [
+    "tests",
+    "scholarship-assistant/tests",
+]
