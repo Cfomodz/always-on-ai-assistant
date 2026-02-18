@@ -179,20 +179,24 @@
     const type = getFieldType(field);
 
     if (type === "select") {
+      // Coerce to string to guard against numeric/boolean values from the LLM
+      const strValue = String(value);
       // Match option by text or value
       const options = Array.from(field.options);
       const match =
         options.find(
-          (o) => o.textContent.trim().toLowerCase() === value.toLowerCase()
+          (o) => o.textContent.trim().toLowerCase() === strValue.toLowerCase()
         ) ||
-        options.find((o) => o.value.toLowerCase() === value.toLowerCase()) ||
+        options.find((o) => o.value.toLowerCase() === strValue.toLowerCase()) ||
         options.find((o) =>
-          o.textContent.trim().toLowerCase().includes(value.toLowerCase())
+          o.textContent.trim().toLowerCase().includes(strValue.toLowerCase())
         );
       if (match) {
         field.value = match.value;
       }
     } else if (type === "radio") {
+      // Coerce to string to guard against numeric/boolean values from the LLM
+      const strValue = String(value);
       // Find the radio with matching value or label
       const radios = document.querySelectorAll(
         `input[name="${CSS.escape(field.name)}"]`
@@ -200,8 +204,8 @@
       radios.forEach((r) => {
         const radioLabel = getLabelForField(r) || r.value;
         if (
-          r.value.toLowerCase() === value.toLowerCase() ||
-          radioLabel.toLowerCase().includes(value.toLowerCase())
+          r.value.toLowerCase() === strValue.toLowerCase() ||
+          radioLabel.toLowerCase().includes(strValue.toLowerCase())
         ) {
           r.checked = true;
           r.dispatchEvent(new Event("click", { bubbles: true }));
