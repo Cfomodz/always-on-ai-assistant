@@ -36,6 +36,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from server.interview import (
     _is_skip,
     _is_list_field,
+    _is_field_filled,
+    _count_filled_fields,
     _match_to_expected_options,
     _parse_list_response,
     FIELD_EXPECTED_OPTIONS,
@@ -104,6 +106,57 @@ class TestIsSkip:
     def test_optional_skip_phrases(self):
         for phrase in SKIP_PHRASES_OPTIONAL - SKIP_PHRASES:
             assert _is_skip(phrase, is_optional=True), f"Expected '{phrase}' to be skip when optional"
+
+
+# ===========================================================================
+# _is_field_filled / _count_filled_fields (resumption logic)
+# ===========================================================================
+
+
+class TestIsFieldFilled:
+    """Test resumption logic: which fields count as already answered."""
+
+    def test_empty_string_not_filled(self):
+        profile = {"personal": {"full_legal_name": ""}}
+        assert _is_field_filled(profile, "personal.full_legal_name") is False
+
+    def test_whitespace_only_not_filled(self):
+        profile = {"personal": {"full_legal_name": "   "}}
+        assert _is_field_filled(profile, "personal.full_legal_name") is False
+
+    def test_non_empty_string_filled(self):
+        profile = {"personal": {"full_legal_name": "Jane Doe"}}
+        assert _is_field_filled(profile, "personal.full_legal_name") is True
+
+    def test_empty_list_not_filled(self):
+        profile = {"education_current": {"majors": []}}
+        assert _is_field_filled(profile, "education_current.majors") is False
+
+    def test_non_empty_list_filled(self):
+        profile = {"education_current": {"majors": ["CS", "Math"]}}
+        assert _is_field_filled(profile, "education_current.majors") is True
+
+    def test_missing_key_not_filled(self):
+        profile = {"personal": {}}
+        assert _is_field_filled(profile, "personal.full_legal_name") is False
+
+    def test_nested_key_filled(self):
+        profile = {"education_history": {"high_school": {"name": "Lincoln HS"}}}
+        assert _is_field_filled(profile, "education_history.high_school.name") is True
+
+
+class TestCountFilledFields:
+    def test_empty_profile_zero(self):
+        from server.profile_manager import _empty_profile
+        profile = _empty_profile()
+        assert _count_filled_fields(profile) == 0
+
+    def test_partial_profile(self):
+        from server.profile_manager import _empty_profile
+        profile = _empty_profile()
+        profile["personal"]["full_legal_name"] = "Alice"
+        profile["personal"]["email"] = "alice@example.com"
+        assert _count_filled_fields(profile) == 2
 
 
 # ===========================================================================

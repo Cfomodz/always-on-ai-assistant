@@ -6,7 +6,7 @@ Triggered on first run (no profile.json) or via --init / POST /init.
 import logging
 from typing import Callable, Optional
 
-from server.profile_manager import load_profile, save_profile, profile_exists, set_field
+from server.profile_manager import load_profile, save_profile, profile_exists, set_field, get_field
 from server.voice import (
     speak,
     ask_and_listen,
@@ -104,6 +104,23 @@ SKIP_PHRASES = {"skip", "pass", "next", "skip it", "pass on that", "i'd rather n
 SKIP_PHRASES_OPTIONAL = SKIP_PHRASES | {"no", "nope", "i don't", "i do not", "none", "nothing"}
 
 
+def _is_field_filled(profile: dict, dot_key: str) -> bool:
+    """Return True if the field already has a meaningful value (skip on resume)."""
+    val = get_field(profile, dot_key)
+    if val is None:
+        return False
+    if isinstance(val, list):
+        return len(val) > 0
+    if isinstance(val, str):
+        return len(val.strip()) > 0
+    return True  # other types (int, bool, etc.) count as filled
+
+
+def _count_filled_fields(profile: dict) -> int:
+    """Return how many interview fields are already filled."""
+    return sum(1 for (dk, _, _, _) in INTERVIEW_QUESTIONS if _is_field_filled(profile, dk))
+
+
 def _is_skip(response: str, is_optional: bool = False) -> bool:
     normalized = response.lower().strip().rstrip(".")
     if is_optional and normalized in SKIP_PHRASES_OPTIONAL:
@@ -193,14 +210,33 @@ def run_interview(
         The completed profile dict.
     """
     profile = load_profile()
+    filled_count = _count_filled_fields(profile)
+    total_count = len(INTERVIEW_QUESTIONS)
 
-    speak(
-        "Hi! I'm your scholarship assistant. I'm going to ask you a series of "
-        "questions to build your profile. This will save you a ton of time when "
-        "filling out scholarship applications later. You can say 'skip' or 'pass' "
-        "on any question you'd rather not answer right now. Let's get started.",
-        cache=True,
-    )
+    if filled_count >= total_count:
+        speak(
+            "Your profile is already complete. All questions have been answered. "
+            "If you'd like to update anything, use the profile import page or "
+            "re-run the interview and answer the questions you want to change.",
+            cache=True,
+        )
+        return profile
+
+    if filled_count > 0:
+        speak(
+            f"Welcome back. I'll pick up where we left off. "
+            f"You've answered {filled_count} of {total_count} questions so far. "
+            "You can say skip or pass on any question you'd rather not answer.",
+            cache=True,
+        )
+    else:
+        speak(
+            "Hi! I'm your scholarship assistant. I'm going to ask you a series of "
+            "questions to build your profile. This will save you a ton of time when "
+            "filling out scholarship applications later. You can say 'skip' or 'pass' "
+            "on any question you'd rather not answer right now. Let's get started.",
+            cache=True,
+        )
 
     # Keys that should not be cleaned up (factual data)
     NO_CLEANUP_KEYS = {
@@ -219,6 +255,9 @@ def run_interview(
     }
 
     for dot_key, question, is_optional, is_sensitive in INTERVIEW_QUESTIONS:
+        if _is_field_filled(profile, dot_key):
+            logger.info(f"Interview: skipping {dot_key} (already answered)")
+            continue
         logger.info(f"Interview: asking {dot_key}")
 
         cleanup = dot_key not in NO_CLEANUP_KEYS
