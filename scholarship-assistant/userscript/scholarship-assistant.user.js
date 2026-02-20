@@ -455,6 +455,7 @@
   // ─── Floating Trigger Button ─────────────────────────────────────
 
   function injectButton() {
+    const importUrl = `${BACKEND_URL}/profile/import`;
     const container = document.createElement("div");
     container.id = "sa-container";
     container.innerHTML = `
@@ -509,8 +510,27 @@
         #sa-status:not(:empty) {
           opacity: 1;
         }
+        #sa-import-link {
+          position: absolute;
+          bottom: 64px;
+          right: 0;
+          font-size: 11px;
+          color: #999;
+          text-decoration: none;
+          opacity: 0;
+          transition: opacity 0.2s;
+        }
+        #sa-container:hover #sa-import-link {
+          opacity: 1;
+        }
+        #sa-import-link:hover {
+          color: #1a73e8;
+        }
       </style>
       <div id="sa-status"></div>
+      <a id="sa-import-link" href="${importUrl}" target="_blank" rel="noopener" title="Import Q&amp;A or raw text into profile">
+        Import profile
+      </a>
       <button id="sa-trigger" title="Scholarship Assistant — Click to auto-fill">
         🎓
       </button>

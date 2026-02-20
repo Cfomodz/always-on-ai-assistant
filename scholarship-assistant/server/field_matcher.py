@@ -20,8 +20,12 @@ logger = logging.getLogger("scholarship-assistant")
 
 MATCH_SYSTEM_PROMPT = """You are a scholarship form field matcher. You receive a list of form fields scraped from a scholarship application page and a user profile with their personal information.
 
+The profile may include:
+- Standard keys (personal.*, education_current.*, professional.*, etc.)
+- Dynamic keys under extended.* (e.g. extended.family_military_branches, extended.medical_specialties_planned, extended.licensures_held) — these are imported/ad-hoc data. Match form questions to these when the semantics align.
+
 For each form field, determine:
-1. Whether it matches a profile field (and which one)
+1. Whether it matches a profile field (and which one — standard OR extended)
 2. The correct value to fill in
 3. Your confidence (0.0 to 1.0) that the match is correct
 4. Whether the field is an essay/open-ended question
@@ -30,7 +34,8 @@ Rules:
 - For select/dropdown fields, the value MUST be one of the provided options (exact match)
 - For radio/checkbox fields, the value MUST be one of the provided option values
 - For date fields, infer the expected format from the field and format accordingly
-- If a field asks for something not in the profile, mark it as unmatched
+- Match against extended.* keys when the form question asks about data stored there (e.g. "family military" → extended.family_military_branches)
+- If a field asks for something genuinely not in the profile, mark it as unmatched
 - If a field is a textarea with an essay-like prompt (more than a short answer), mark is_essay: true
 - Confidence should reflect how certain you are of the mapping AND the value:
   - 0.9-1.0: Direct, unambiguous match (e.g., "Email" → profile.email)

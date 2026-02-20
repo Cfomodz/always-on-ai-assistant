@@ -110,6 +110,7 @@ class SimpleAudioRecorder:
                     if text:
                         if self.print_transcription_time:
                             print(f"🎤 Transcription took {transcription_time:.2f}s")
+                        print(f"Heard: {text}")
                         callback(text)
                     
                 except Exception as e:

@@ -181,6 +181,8 @@ def listen(cleanup: bool = True) -> str:
     """
     recorder = _get_recorder()
     text = recorder.text()
+    if text:
+        logger.info(f"Heard: {text}")
     if cleanup and text:
         text = clean_transcription(text)
     return text

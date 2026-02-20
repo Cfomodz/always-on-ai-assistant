@@ -55,9 +55,12 @@ This module lives under `scholarship-assistant/` and is invoked independently, b
 
 **Storage:** `~/.scholarship-assistant/profile.json`
 
-**Structure:** A flat-ish JSON document organized by category. Every field has a canonical key and a list of known phrasings (built up over time as DeepSeek encounters new question wordings).
+**Structure:** A flat-ish JSON document organized by category. Every field has a canonical key. The profile supports **dynamic keys** — data imported via Q&A or raw text can add new fields that don't exist in the standard schema.
 
-**Profile categories and fields (init interview covers all of these):**
+- **Extended:** An `extended` section holds ad-hoc key-value pairs for scholarship-specific data (e.g. `extended.family_military_branches`, `extended.medical_specialties_planned`, `extended.licensures_held`). The field matcher uses these when matching form questions.
+- **Standard categories** are preferred when data fits; new keys can be added to any category when needed.
+
+**Profile categories and fields (init interview covers the standard ones):**
 
 - **Personal**
   - Full legal name, preferred name, pronouns
@@ -112,6 +115,10 @@ This module lives under `scholarship-assistant/` and is invoked independently, b
 - **Essays / Narrative Snippets** (transcribed, never AI-written)
   - Stored as key-value: `{ "prompt_summary": "transcribed_response" }`
   - Reusable across similar prompts if user confirms
+
+- **Extended** (dynamic, from imports and voice answers)
+  - Arbitrary keys for data that doesn't fit above (e.g. family military branches, medical specialties planned, licensures, religious affiliation, sports/art/industry interests)
+  - Grows as user imports Q&A data or answers new questions during form fill
 
 ### 2. Field Matcher (DeepSeek Integration)
 
@@ -343,6 +350,8 @@ scholarship-assistant/
 | GET | `/history` | Return application history |
 | POST | `/history/check` | Dedup check (scholarship name + org) |
 | POST | `/init` | Start init interview (voice-driven) |
+| GET | `/profile/import` | Serve import UI (HTML page) |
+| POST | `/profile/import` | Import Q&A pairs or raw text into profile via DeepSeek |
 | GET | `/status` | Health check |
 
 ---

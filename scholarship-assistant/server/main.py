@@ -15,7 +15,7 @@ from typing import Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
 
 # Ensure the scholarship-assistant package root is importable so that
@@ -50,6 +50,7 @@ from server.voice import (
 )
 from server.essay_handler import handle_essay
 from server.interview import run_interview
+from server.profile_import import import_into_profile
 
 logger = logging.getLogger("scholarship-assistant")
 
@@ -81,6 +82,11 @@ class AnalyzeRequest(BaseModel):
 
 class ProfileUpdate(BaseModel):
     updates: dict[str, object]
+
+
+class ProfileImportRequest(BaseModel):
+    content: str
+    dry_run: bool = False
 
 
 class DedupCheck(BaseModel):
@@ -159,6 +165,147 @@ async def get_profile():
 async def patch_profile(body: ProfileUpdate):
     updated = update_profile(body.updates)
     return updated
+
+
+@app.get("/profile/import", response_class=HTMLResponse)
+async def profile_import_page():
+    """Serve the profile import UI page."""
+    html = """
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Scholarship Assistant — Import Profile</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 720px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      color: #333;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    p { color: #666; font-size: 0.95rem; margin-bottom: 1rem; }
+    textarea {
+      width: 100%;
+      min-height: 280px;
+      padding: 12px;
+      font-family: inherit;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      resize: vertical;
+    }
+    textarea:focus { outline: none; border-color: #1a73e8; }
+    .actions { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
+    button {
+      padding: 10px 20px;
+      font-size: 15px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button.primary {
+      background: #1a73e8;
+      color: white;
+    }
+    button.primary:hover { background: #1557b0; }
+    button.secondary {
+      background: #f1f3f4;
+      color: #333;
+    }
+    button.secondary:hover { background: #e8eaed; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .result {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 8px;
+      display: none;
+    }
+    .result.success { background: #e6f4ea; border: 1px solid #34a853; }
+    .result.error { background: #fce8e6; border: 1px solid #ea4335; }
+    .result pre { margin: 0.5rem 0 0; font-size: 13px; overflow-x: auto; }
+    .result h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+    label { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>Import Profile Data</h1>
+  <p>Paste Q&A pairs (tab-separated: Question, Answer, Last Answered) or raw text below. DeepSeek will extract and merge the data into your scholarship profile.</p>
+  <textarea id="content" placeholder="Paste your Q&A data here...
+
+Example (tab-separated):
+Question	Answer(s)	Last Answered
+What is your citizenship status?	US Citizen	6/13/2025
+Which college are you currently attending?	WESTERN GOVERNORS UNIVERSITY (UT)	2/13/2026
+..."></textarea>
+  <div class="actions">
+    <button id="importBtn" class="primary">Import</button>
+    <button id="dryRunBtn" class="secondary">Preview (dry run)</button>
+  </div>
+  <div id="result" class="result"></div>
+  <script>
+    const content = document.getElementById('content');
+    const importBtn = document.getElementById('importBtn');
+    const dryRunBtn = document.getElementById('dryRunBtn');
+    const resultEl = document.getElementById('result');
+    const API = window.location.origin;
+
+    async function runImport(dryRun) {
+      const text = content.value.trim();
+      if (!text) {
+        alert('Please paste some content to import.');
+        return;
+      }
+      importBtn.disabled = true;
+      dryRunBtn.disabled = true;
+      resultEl.style.display = 'none';
+      try {
+        const res = await fetch(API + '/profile/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: text, dry_run: dryRun })
+        });
+        const data = await res.json();
+        resultEl.className = 'result ' + (data.error ? 'error' : 'success');
+        resultEl.style.display = 'block';
+        let msg = data.summary || '';
+        if (data.updates && Object.keys(data.updates).length > 0) {
+          msg += '\\n\\nUpdates applied: ' + Object.keys(data.updates).length;
+          msg += '\\n' + JSON.stringify(data.updates, null, 2);
+        }
+        if (data.error) msg = 'Error: ' + data.error;
+        if (data.skipped && data.skipped.length) {
+          msg += '\\n\\nSkipped: ' + data.skipped.join(', ');
+        }
+        resultEl.innerHTML = '<h3>' + (dryRun ? 'Preview' : 'Result') + '</h3><pre>' + msg.replace(/</g, '&lt;') + '</pre>';
+      } catch (e) {
+        resultEl.className = 'result error';
+        resultEl.style.display = 'block';
+        resultEl.innerHTML = '<h3>Error</h3><pre>' + e.message + '</pre>';
+      }
+      importBtn.disabled = false;
+      dryRunBtn.disabled = false;
+    }
+    importBtn.onclick = () => runImport(false);
+    dryRunBtn.onclick = () => runImport(true);
+  </script>
+</body>
+</html>
+"""
+    return HTMLResponse(html)
+
+
+@app.post("/profile/import")
+async def profile_import(body: ProfileImportRequest):
+    """Import Q&A pairs or raw text into the profile via DeepSeek."""
+    result = await run_in_threadpool(
+        import_into_profile,
+        body.content,
+        body.dry_run,
+    )
+    return result
 
 
 @app.get("/history")

@@ -92,6 +92,7 @@ def _empty_profile() -> dict:
             "publications": [],
             "organizational_memberships": [],
         },
+        "extended": {},  # Dynamic key-value store for imported/ad-hoc data not in schema
         "essays": {},
     }
 
@@ -100,7 +101,11 @@ def load_profile() -> dict:
     """Load profile from disk, or return empty profile if none exists."""
     if PROFILE_PATH.exists():
         with open(PROFILE_PATH, "r") as f:
-            return json.load(f)
+            profile = json.load(f)
+        # Ensure extended section exists for dynamic data (profiles created before this)
+        if "extended" not in profile or not isinstance(profile["extended"], dict):
+            profile["extended"] = {}
+        return profile
     return _empty_profile()
 
 

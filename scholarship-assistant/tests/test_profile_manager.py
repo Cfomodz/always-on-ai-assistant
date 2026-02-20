@@ -50,7 +50,7 @@ class TestEmptyProfile(unittest.TestCase):
         profile = _empty_profile()
         for section in ["personal", "disability", "education_current",
                         "education_history", "professional", "financial",
-                        "extracurricular", "essays"]:
+                        "extracurricular", "extended", "essays"]:
             self.assertIn(section, profile, f"Missing section: {section}")
 
     def test_personal_has_email(self):
@@ -58,6 +58,9 @@ class TestEmptyProfile(unittest.TestCase):
 
     def test_essays_is_empty_dict(self):
         self.assertEqual(_empty_profile()["essays"], {})
+
+    def test_extended_is_empty_dict(self):
+        self.assertEqual(_empty_profile()["extended"], {})
 
     def test_list_fields_are_empty_lists(self):
         profile = _empty_profile()
