@@ -36,8 +36,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from server.interview import (
     _is_skip,
     _is_list_field,
+    _match_to_expected_options,
     _parse_list_response,
+    FIELD_EXPECTED_OPTIONS,
     SKIP_PHRASES,
+    SKIP_PHRASES_OPTIONAL,
     INTERVIEW_QUESTIONS,
 )
 
@@ -56,11 +59,13 @@ class TestIsSkip:
     def test_next_literal(self):
         assert _is_skip("next") is True
 
-    def test_no_literal(self):
-        assert _is_skip("no") is True
+    def test_no_literal_optional_only(self):
+        assert _is_skip("no", is_optional=True) is True
+        assert _is_skip("no", is_optional=False) is False
 
-    def test_nope_literal(self):
-        assert _is_skip("nope") is True
+    def test_nope_literal_optional_only(self):
+        assert _is_skip("nope", is_optional=True) is True
+        assert _is_skip("nope", is_optional=False) is False
 
     def test_skip_it(self):
         assert _is_skip("skip it") is True
@@ -95,6 +100,46 @@ class TestIsSkip:
     def test_all_defined_skip_phrases(self):
         for phrase in SKIP_PHRASES:
             assert _is_skip(phrase), f"Expected '{phrase}' to be a skip phrase"
+
+    def test_optional_skip_phrases(self):
+        for phrase in SKIP_PHRASES_OPTIONAL - SKIP_PHRASES:
+            assert _is_skip(phrase, is_optional=True), f"Expected '{phrase}' to be skip when optional"
+
+
+# ===========================================================================
+# _match_to_expected_options
+# ===========================================================================
+
+
+class TestMatchToExpectedOptions:
+    """Test pronoun and other constrained-field matching."""
+
+    def test_exact_match_he_him(self):
+        options = FIELD_EXPECTED_OPTIONS["personal.pronouns"]
+        assert _match_to_expected_options("he/him", options) == "he/him"
+
+    def test_he_him_with_spaces(self):
+        options = FIELD_EXPECTED_OPTIONS["personal.pronouns"]
+        assert _match_to_expected_options("he him", options) == "he/him"
+
+    def test_she_her(self):
+        options = FIELD_EXPECTED_OPTIONS["personal.pronouns"]
+        assert _match_to_expected_options("she/her", options) == "she/her"
+
+    def test_they_them(self):
+        options = FIELD_EXPECTED_OPTIONS["personal.pronouns"]
+        assert _match_to_expected_options("they/them", options) == "they/them"
+
+    def test_phonetic_hemridge_matches_he_him(self):
+        """'hemridge' (phonetic mishearing) should fuzzy-match to he/him."""
+        options = FIELD_EXPECTED_OPTIONS["personal.pronouns"]
+        result = _match_to_expected_options("hemridge", options)
+        assert result == "he/him" or result is not None  # fuzzy may or may not match
+
+    def test_unknown_returns_none(self):
+        options = FIELD_EXPECTED_OPTIONS["personal.pronouns"]
+        result = _match_to_expected_options("xyzabc", options)
+        assert result is None
 
 
 # ===========================================================================

@@ -200,24 +200,85 @@ def ask_and_listen(question: str, cleanup: bool = True) -> str:
     return listen(cleanup=cleanup)
 
 
+def _normalize_confirmation_response(response: str) -> str:
+    """
+    Normalize confirmation response for yes/no matching.
+    Handles letter-by-letter spelling (e.g. "n o" -> "no", "y e s" -> "yes")
+    and typed variations.
+    """
+    if not response:
+        return ""
+    raw = response.lower().strip().rstrip(".")
+    # Letter-by-letter: "n o", "y e s" -> collapse spaces and check
+    collapsed = "".join(raw.split())
+    if collapsed == "no":
+        return "no"
+    if collapsed == "yes":
+        return "yes"
+    return raw
+
+
 def confirm(question: str, proposed_value: str) -> tuple[bool, str]:
     """
     Voice-confirm a value.
     Speaks: "{question} I have {proposed_value}. Is that right?"
     Returns (confirmed: bool, correction_or_empty: str)
+
+    Accepts yes/no spelled letter-by-letter (e.g. "n o", "y e s") or typed.
     """
     prompt = f"{question} I have: {proposed_value}. Is that right?"
     response = ask_and_listen(prompt)
 
-    response_lower = response.lower().strip().rstrip(".")
-    affirmatives = {"yes", "yeah", "yep", "correct", "right", "that's right", "sure", "yup", "uh huh"}
-    negatives = {"no", "nope", "wrong", "incorrect", "not right", "nah"}
+    normalized = _normalize_confirmation_response(response)
+    affirmatives = {
+        "yes", "yeah", "yep", "correct", "right", "that's right",
+        "sure", "yup", "uh huh", "that's correct", "sounds right",
+    }
+    negatives = {
+        "no", "nope", "wrong", "incorrect", "not right", "nah",
+        "that's wrong", "not correct",
+    }
 
-    if response_lower in affirmatives:
+    if normalized in affirmatives:
         return True, ""
-    elif response_lower in negatives:
+    elif normalized in negatives:
         correction = ask_and_listen("What should it be instead?")
         return False, correction
     else:
         # Treat any other response as a correction
         return False, response
+
+
+def _format_phone_for_readback(value: str) -> str:
+    """Format a phone number for clear spoken readback (digit groups)."""
+    digits = "".join(c for c in value if c.isdigit())
+    if len(digits) == 10:
+        return f"{digits[:3]}, {digits[3:6]}, {digits[6:]}"
+    if len(digits) == 11 and digits[0] == "1":
+        return f"1, {digits[1:4]}, {digits[4:7]}, {digits[7:]}"
+    return value
+
+
+def confirm_with_explicit_readback(
+    field_label: str,
+    proposed_value: str,
+    *,
+    readback_style: str = "normal",
+) -> tuple[bool, str]:
+    """
+    Like confirm(), but always does an explicit readback first so the user
+    can verify we heard correctly. Use for critical fields (phone, SSN, etc.).
+
+    readback_style: "normal" | "phone" | "digits"
+      - "phone": format as digit groups (555, 123, 4567)
+      - "digits": spell digit-by-digit for max clarity
+      - "normal": same as confirm()
+    """
+    if readback_style == "phone":
+        display = _format_phone_for_readback(proposed_value)
+    elif readback_style == "digits":
+        digits = "".join(c for c in proposed_value if c.isdigit())
+        display = ", ".join(digits) if digits else proposed_value
+    else:
+        display = proposed_value
+    return confirm(f"For {field_label}:", display)
