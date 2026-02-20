@@ -7,9 +7,29 @@ import logging
 from typing import Callable, Optional
 
 from server.profile_manager import load_profile, save_profile, profile_exists, set_field
-from server.voice import speak, ask_and_listen, confirm, speak_interview_filler
+from server.voice import (
+    speak,
+    ask_and_listen,
+    confirm,
+    confirm_with_explicit_readback,
+    speak_interview_filler,
+)
+from server.sanity_check import interpret_response, SANITY_CHECK_ENABLED
 
 logger = logging.getLogger("scholarship-assistant")
+
+# Fields with expected/valid options — if transcription doesn't match, re-ask for clarification
+FIELD_EXPECTED_OPTIONS: dict[str, list[str]] = {
+    "personal.pronouns": [
+        "he/him",
+        "she/her",
+        "they/them",
+        "he/him or they/them",
+        "she/her or they/them",
+        "any",
+        "prefer not to say",
+    ],
+}
 
 # Each question: (dot_key, spoken_question, optional_flag, sensitive_flag)
 # optional_flag: if True, explain why and respect "skip"
@@ -80,10 +100,15 @@ INTERVIEW_QUESTIONS = [
 ]
 
 SKIP_PHRASES = {"skip", "pass", "next", "skip it", "pass on that", "i'd rather not"}
+# For optional "do you have X?" questions, "no"/"nope" means "I don't have one" = skip
+SKIP_PHRASES_OPTIONAL = SKIP_PHRASES | {"no", "nope", "i don't", "i do not", "none", "nothing"}
 
 
-def _is_skip(response: str) -> bool:
-    return response.lower().strip().rstrip(".") in SKIP_PHRASES
+def _is_skip(response: str, is_optional: bool = False) -> bool:
+    normalized = response.lower().strip().rstrip(".")
+    if is_optional and normalized in SKIP_PHRASES_OPTIONAL:
+        return True
+    return normalized in SKIP_PHRASES
 
 
 def _is_list_field(dot_key: str) -> bool:
@@ -112,6 +137,46 @@ def _parse_list_response(response: str) -> list:
     text = response.replace(" and ", ", ")
     items = [item.strip().strip(".") for item in text.split(",") if item.strip()]
     return items
+
+
+def _match_to_expected_options(value: str, options: list[str], threshold: int = 60) -> str | None:
+    """
+    Try to match a transcribed value to one of the expected options.
+    Returns the matched option string or None if no good match.
+    Handles phonetically-misspelled variants like "hemridge" -> "he/him" via fuzzy match.
+    """
+    value_lower = value.lower().strip()
+    if not value_lower:
+        return None
+    for opt in options:
+        opt_lower = opt.lower()
+        # Exact or contained
+        if value_lower == opt_lower or opt_lower in value_lower:
+            return opt
+        # Normalize: "he him", "he/him", "he-him" -> compare stems
+        value_norm = value_lower.replace("/", " ").replace("-", " ").replace(".", " ")
+        opt_norm = opt_lower.replace("/", " ").replace("-", " ")
+        if value_norm.split() == opt_norm.split():
+            return opt
+    # Fuzzy match for phonetic variants (e.g. "hemridge" -> "he/him")
+    try:
+        from thefuzz import fuzz
+
+        best_score = 0
+        best_opt = None
+        for opt in options:
+            opt_lower = opt.lower()
+            score = max(
+                fuzz.ratio(value_lower, opt_lower),
+                fuzz.partial_ratio(value_lower, opt_lower),
+                fuzz.token_set_ratio(value_lower, opt_lower),
+            )
+            if score > best_score and score >= threshold:
+                best_score = score
+                best_opt = opt
+        return best_opt
+    except ImportError:
+        return None
 
 
 def run_interview(
@@ -166,7 +231,20 @@ def run_interview(
         else:
             response = ask_and_listen(question, cleanup=cleanup)
 
-        if not response or _is_skip(response):
+        # Treat skip phrases as skip. For ambiguous responses (no, nope, etc.) on
+        # optional questions: when SANITY_CHECK_ENABLED, Deepseek decides; else
+        # we treat no/nope as skip via _is_skip.
+        if not response:
+            logger.info(f"Interview: skipped {dot_key} (empty)")
+            continue
+        ambiguous = response.lower().strip() in ("no", "nope", "none", "nothing")
+        if ambiguous and is_optional and SANITY_CHECK_ENABLED:
+            interp = interpret_response(question, response, is_optional)
+            if interp == "skip":
+                logger.info(f"Interview: skipped {dot_key} (sanity check: skip)")
+                continue
+            # "use" or "reask": fall through; confirm() gives user a chance to correct
+        elif _is_skip(response, is_optional=is_optional):
             logger.info(f"Interview: skipped {dot_key}")
             continue
 
@@ -178,11 +256,47 @@ def run_interview(
             value = response
             display_value = response
 
-        # Confirm
-        confirmed, correction = confirm(
-            f"For {dot_key.split('.')[-1].replace('_', ' ')}:",
-            display_value,
-        )
+        # For fields with expected options (e.g. pronouns): validate transcription
+        if dot_key in FIELD_EXPECTED_OPTIONS:
+            matched = _match_to_expected_options(
+                value, FIELD_EXPECTED_OPTIONS[dot_key]
+            )
+            if matched:
+                value = matched
+                display_value = matched
+            else:
+                # Transcription doesn't match any known option; ask for clarification
+                options_str = ", ".join(FIELD_EXPECTED_OPTIONS[dot_key][:5])
+                clarification = ask_and_listen(
+                    f"I heard '{value}' but I'm not sure which you meant. "
+                    f"Did you mean one of these: {options_str}? Or say yours and I'll remember it.",
+                    cleanup=cleanup,
+                )
+                if clarification and not _is_skip(clarification, is_optional=True):
+                    matched = _match_to_expected_options(
+                        clarification, FIELD_EXPECTED_OPTIONS[dot_key]
+                    )
+                    value = matched if matched else clarification
+                    display_value = value
+                else:
+                    logger.info(f"Interview: skipped {dot_key} (clarification declined)")
+                    continue
+
+        # Confirm — always read back and get explicit confirmation.
+        # Critical fields (phone, SSN) get extra clear readback.
+        field_label = dot_key.split(".")[-1].replace("_", " ")
+        if dot_key == "personal.phone":
+            confirmed, correction = confirm_with_explicit_readback(
+                field_label, display_value, readback_style="phone"
+            )
+        elif dot_key == "personal.ssn_last4":
+            confirmed, correction = confirm_with_explicit_readback(
+                field_label, display_value, readback_style="digits"
+            )
+        else:
+            confirmed, correction = confirm(
+                f"For {field_label}:", display_value
+            )
 
         if not confirmed and correction:
             if _is_list_field(dot_key):
