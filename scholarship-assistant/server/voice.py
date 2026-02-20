@@ -158,18 +158,20 @@ def _get_recorder():
     if _recorder is None:
         with _recorder_lock:
             if _recorder is None:
-                from RealtimeSTT import AudioToTextRecorder
-
-                _recorder = AudioToTextRecorder(
-                    spinner=False,
-                    post_speech_silence_duration=1.5,
-                    compute_type="float32",
-                    model=WHISPER_MODEL,
-                    beam_size=8,
-                    batch_size=25,
-                    language="en",
-                    print_transcription_time=True,
-                )
+                from server.audio_utils import suppress_alsa_stderr, _quiet_stderr
+                suppress_alsa_stderr()  # Must run before RealtimeSTT/PyAudio loads
+                with _quiet_stderr():  # Suppress ALSA/JACK spam during init
+                    from RealtimeSTT import AudioToTextRecorder
+                    _recorder = AudioToTextRecorder(
+                        spinner=False,
+                        post_speech_silence_duration=1.5,
+                        compute_type="float32",
+                        model=WHISPER_MODEL,
+                        beam_size=8,
+                        batch_size=25,
+                        language="en",
+                        print_transcription_time=True,
+                    )
     return _recorder
 
 

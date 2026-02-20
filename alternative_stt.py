@@ -4,6 +4,18 @@ Alternative STT implementation using openai-whisper instead of RealtimeSTT
 This avoids the ctranslate2 executable stack issue.
 """
 
+# Suppress ALSA stderr before PyAudio loads (Linux only)
+def _suppress_alsa():
+    import platform
+    if platform.system() == "Linux":
+        try:
+            from ctypes import CFUNCTYPE, c_char_p, c_int, cdll
+            _handler = CFUNCTYPE(None, c_char_p, c_int, c_char_p, c_int, c_char_p)(lambda *a: None)
+            cdll.LoadLibrary("libasound.so.2").snd_lib_error_set_handler(_handler)
+        except Exception:
+            pass
+_suppress_alsa()
+
 import pyaudio
 import wave
 import tempfile
