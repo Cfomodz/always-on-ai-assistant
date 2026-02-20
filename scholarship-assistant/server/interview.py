@@ -13,6 +13,9 @@ from server.voice import (
     confirm,
     confirm_with_explicit_readback,
     speak_interview_filler,
+    CONFIRM_CONFIRMED,
+    CONFIRM_CORRECTION,
+    CONFIRM_SKIP,
 )
 from server.sanity_check import interpret_response, SANITY_CHECK_ENABLED
 
@@ -321,29 +324,42 @@ def run_interview(
                     logger.info(f"Interview: skipped {dot_key} (clarification declined)")
                     continue
 
-        # Confirm — always read back and get explicit confirmation.
+        # Confirm — always read back and get explicit confirmation. Loop until yes/no/skip.
         # Critical fields (phone, SSN) get extra clear readback.
         field_label = dot_key.split(".")[-1].replace("_", " ")
         if dot_key == "personal.phone":
-            confirmed, correction = confirm_with_explicit_readback(
+            result, correction = confirm_with_explicit_readback(
                 field_label, display_value, readback_style="phone"
             )
         elif dot_key == "personal.ssn_last4":
-            confirmed, correction = confirm_with_explicit_readback(
+            result, correction = confirm_with_explicit_readback(
                 field_label, display_value, readback_style="digits"
             )
         else:
-            confirmed, correction = confirm(
+            result, correction = confirm(
                 f"For {field_label}:", display_value
             )
 
-        if not confirmed and correction:
+        if result == CONFIRM_SKIP:
+            logger.info(f"Interview: skipped {dot_key} (user skipped during confirm)")
+            speak_interview_filler()
+            continue
+
+        if result == CONFIRM_CORRECTION and correction:
+            if _is_skip(correction, is_optional=True):
+                logger.info(f"Interview: skipped {dot_key} (skip during correction)")
+                speak_interview_filler()
+                continue
             if _is_list_field(dot_key):
                 value = _parse_list_response(correction)
             else:
                 value = correction
 
-        # Save incrementally
+        # Save incrementally (never store literal "skip")
+        if isinstance(value, str) and value.strip().lower() == "skip":
+            logger.info(f"Interview: skipped {dot_key} (would have stored literal skip)")
+            speak_interview_filler()
+            continue
         set_field(profile, dot_key, value)
         save_profile(profile)
         logger.info(f"Interview: saved {dot_key} = {value}")

@@ -1,6 +1,6 @@
 """
-Voice module — ElevenLabs TTS + RealtimeSTT for speech recognition.
-Reuses the parent project's ElevenLabs patterns and RealtimeSTT dependency.
+Voice module — ElevenLabs TTS + openai-whisper for speech recognition.
+Uses alternative_stt (openai-whisper + PyAudio) instead of RealtimeSTT.
 Supports disk-based audio caching and pre-generated filler responses.
 """
 
@@ -32,6 +32,7 @@ from server.config import (
     ELEVENLABS_VOICE_ID,
     ELEVENLABS_MODEL,
     WHISPER_MODEL,
+    TEXT_INPUT_MODE,
 )
 from server.cleanup import clean_transcription
 
@@ -57,8 +58,12 @@ def speak(text: str, cache: bool = False) -> None:
         text: The text to speak.
         cache: If True, cache the audio on disk. Use for fixed/repeatable
                segments (intro lines, filler responses, etc.).
+    With TEXT_INPUT_MODE=1, prints to console instead (avoids audio stack).
     """
     if not text.strip():
+        return
+    if TEXT_INPUT_MODE:
+        print(f"[VOICE] {text}")
         return
     try:
         client = _get_elevenlabs_client()
@@ -146,30 +151,25 @@ def warmup_cache() -> int:
     return generated
 
 
-# --- STT (RealtimeSTT / whisper) ---
+# --- STT (openai-whisper via alternative_stt) ---
 
 _recorder = None
 _recorder_lock = threading.Lock()
 
 
 def _get_recorder():
-    """Lazy-init the AudioToTextRecorder (heavy import)."""
+    """Lazy-init the whisper-based recorder (heavy import)."""
     global _recorder
     if _recorder is None:
         with _recorder_lock:
             if _recorder is None:
                 from server.audio_utils import suppress_alsa_stderr, _quiet_stderr
-                suppress_alsa_stderr()  # Must run before RealtimeSTT/PyAudio loads
-                with _quiet_stderr():  # Suppress ALSA/JACK spam during init
-                    from RealtimeSTT import AudioToTextRecorder
-                    _recorder = AudioToTextRecorder(
-                        spinner=False,
-                        post_speech_silence_duration=1.5,
-                        compute_type="float32",
-                        model=WHISPER_MODEL,
-                        beam_size=8,
-                        batch_size=25,
-                        language="en",
+                suppress_alsa_stderr()
+                with _quiet_stderr():
+                    from alternative_stt import SimpleAudioRecorder
+                    _recorder = SimpleAudioRecorder(
+                        model_name=WHISPER_MODEL,
+                        silence_duration=1.5,
                         print_transcription_time=True,
                     )
     return _recorder
@@ -180,11 +180,21 @@ def listen(cleanup: bool = True) -> str:
     Listen for speech and return the transcribed text.
     Blocks until the user stops speaking (silence-based VAD).
     If cleanup=True, runs filler removal and punctuation fixes.
+    With TEXT_INPUT_MODE=1, uses stdin instead of mic (for testing without audio).
     """
+    if TEXT_INPUT_MODE:
+        text = input("> ").strip()
+        if text:
+            logger.info(f"Heard: {text}")
+            print(f"Heard: {text}")
+        if cleanup and text:
+            text = clean_transcription(text)
+        return text
     recorder = _get_recorder()
-    text = recorder.text()
+    text = recorder.text_blocking()
     if text:
         logger.info(f"Heard: {text}")
+        print(f"Heard: {text}")
     if cleanup and text:
         text = clean_transcription(text)
     return text
@@ -204,35 +214,44 @@ def ask_and_listen(question: str, cleanup: bool = True) -> str:
     return listen(cleanup=cleanup)
 
 
+# Confirmation result: "confirmed" | "correction" | "skip"
+CONFIRM_SKIP = "skip"
+CONFIRM_CONFIRMED = "confirmed"
+CONFIRM_CORRECTION = "correction"
+
+CONFIRM_SKIP_PHRASES = {"skip", "pass", "next", "skip it", "pass on that"}
+
+
 def _normalize_confirmation_response(response: str) -> str:
     """
     Normalize confirmation response for yes/no matching.
-    Handles letter-by-letter spelling (e.g. "n o" -> "no", "y e s" -> "yes")
-    and typed variations.
+    Handles y/n, letter-by-letter spelling (n o, y e s), and typed variations.
     """
     if not response:
         return ""
     raw = response.lower().strip().rstrip(".")
-    # Letter-by-letter: "n o", "y e s" -> collapse spaces and check
     collapsed = "".join(raw.split())
-    if collapsed == "no":
+    if collapsed in ("no", "n"):
         return "no"
-    if collapsed == "yes":
+    if collapsed in ("yes", "y"):
         return "yes"
     return raw
 
 
-def confirm(question: str, proposed_value: str) -> tuple[bool, str]:
-    """
-    Voice-confirm a value.
-    Speaks: "{question} I have {proposed_value}. Is that right?"
-    Returns (confirmed: bool, correction_or_empty: str)
+def _is_confirm_skip(response: str) -> bool:
+    """Check if response is a skip phrase during confirmation."""
+    normalized = response.lower().strip()
+    return normalized in CONFIRM_SKIP_PHRASES or "".join(normalized.split()) == "skip"
 
-    Accepts yes/no spelled letter-by-letter (e.g. "n o", "y e s") or typed.
-    """
-    prompt = f"{question} I have: {proposed_value}. Is that right?"
-    response = ask_and_listen(prompt)
 
+def _parse_confirm_response(response: str) -> str:
+    """
+    Parse confirmation response into "yes", "no", "skip", or "" (ambiguous).
+    """
+    if not response:
+        return ""
+    if _is_confirm_skip(response):
+        return "skip"
     normalized = _normalize_confirmation_response(response)
     affirmatives = {
         "yes", "yeah", "yep", "correct", "right", "that's right",
@@ -242,15 +261,37 @@ def confirm(question: str, proposed_value: str) -> tuple[bool, str]:
         "no", "nope", "wrong", "incorrect", "not right", "nah",
         "that's wrong", "not correct",
     }
-
     if normalized in affirmatives:
-        return True, ""
-    elif normalized in negatives:
-        correction = ask_and_listen("What should it be instead?")
-        return False, correction
-    else:
-        # Treat any other response as a correction
-        return False, response
+        return "yes"
+    if normalized in negatives:
+        return "no"
+    return ""
+
+
+def confirm(question: str, proposed_value: str) -> tuple[str, str]:
+    """
+    Voice-confirm a value. Loops until user says yes, no, or skip.
+
+    Speaks: "{question} I have {proposed_value}. Is that right?"
+    Returns: (CONFIRM_CONFIRMED, "") or (CONFIRM_CORRECTION, correction) or (CONFIRM_SKIP, "")
+
+    Accepts y/n, yes/no, skip, and re-asks on ambiguous responses.
+    """
+    prompt = f"{question} I have: {proposed_value}. Is that right?"
+
+    while True:
+        response = ask_and_listen(prompt)
+        parsed = _parse_confirm_response(response)
+        if parsed == "yes":
+            return (CONFIRM_CONFIRMED, "")
+        if parsed == "skip":
+            return (CONFIRM_SKIP, "")
+        if parsed == "no":
+            correction = ask_and_listen("What should it be instead? You can say skip to leave this blank.")
+            if _is_confirm_skip(correction) or not correction.strip():
+                return (CONFIRM_SKIP, "")
+            return (CONFIRM_CORRECTION, correction)
+        speak("Please say yes, no, or skip.", cache=False)
 
 
 def _format_phone_for_readback(value: str) -> str:

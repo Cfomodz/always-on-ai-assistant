@@ -34,6 +34,8 @@ ELEVENLABS_MODEL = "eleven_flash_v2_5"
 
 # --- STT ---
 WHISPER_MODEL = "base.en"
+# Set TEXT_INPUT_MODE=1 to type responses instead of speaking (avoids mic/segfault issues)
+TEXT_INPUT_MODE = os.getenv("TEXT_INPUT_MODE", "").lower() in ("1", "true", "yes")
 
 # --- Confidence Thresholds ---
 AUTO_FILL_THRESHOLD = 0.8

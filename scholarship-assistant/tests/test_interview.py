@@ -21,9 +21,9 @@ _elc = types.ModuleType("elevenlabs.client")
 _elc.ElevenLabs = object
 sys.modules["elevenlabs.client"] = _elc
 
-_rtstt = types.ModuleType("RealtimeSTT")
-_rtstt.AudioToTextRecorder = object
-sys.modules["RealtimeSTT"] = _rtstt
+_astt = types.ModuleType("alternative_stt")
+_astt.SimpleAudioRecorder = type("SimpleAudioRecorder", (), {"text_blocking": lambda self: ""})
+sys.modules["alternative_stt"] = _astt
 
 # modules.tts_cache uses elevenlabs at import time — stub it so generate_with_cache
 # doesn't try to connect to the API when voice.py imports it.

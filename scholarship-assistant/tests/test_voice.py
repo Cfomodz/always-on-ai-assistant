@@ -16,9 +16,9 @@ _elc = types.ModuleType("elevenlabs.client")
 _elc.ElevenLabs = object
 sys.modules["elevenlabs.client"] = _elc
 
-_rtstt = types.ModuleType("RealtimeSTT")
-_rtstt.AudioToTextRecorder = object
-sys.modules["RealtimeSTT"] = _rtstt
+_astt = types.ModuleType("alternative_stt")
+_astt.SimpleAudioRecorder = type("SimpleAudioRecorder", (), {"text_blocking": lambda self: ""})
+sys.modules["alternative_stt"] = _astt
 
 _tc = types.ModuleType("modules.tts_cache")
 _tc.generate_with_cache = lambda *a, **kw: b""
@@ -52,3 +52,9 @@ class TestNormalizeConfirmationResponse:
 
     def test_yeah_returns_raw(self):
         assert _normalize_confirmation_response("yeah") == "yeah"
+
+    def test_y_normalizes_to_yes(self):
+        assert _normalize_confirmation_response("y") == "yes"
+
+    def test_n_normalizes_to_no(self):
+        assert _normalize_confirmation_response("n") == "no"
