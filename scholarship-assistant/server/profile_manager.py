@@ -98,10 +98,17 @@ def _empty_profile() -> dict:
 
 
 def load_profile() -> dict:
-    """Load profile from disk, or return empty profile if none exists."""
+    """Load profile from disk, or return empty profile if none exists or invalid."""
     if PROFILE_PATH.exists():
-        with open(PROFILE_PATH, "r") as f:
-            profile = json.load(f)
+        try:
+            raw = PROFILE_PATH.read_text(encoding="utf-8").strip()
+            if not raw:
+                return _empty_profile()
+            profile = json.loads(raw)
+            if not isinstance(profile, dict):
+                return _empty_profile()
+        except (json.JSONDecodeError, OSError, TypeError):
+            return _empty_profile()
         # Ensure extended section exists for dynamic data (profiles created before this)
         if "extended" not in profile or not isinstance(profile["extended"], dict):
             profile["extended"] = {}

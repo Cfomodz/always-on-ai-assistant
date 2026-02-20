@@ -6,10 +6,11 @@ Serves on localhost:8741. Communicates with Tampermonkey userscript via REST + W
 import asyncio
 import json
 import logging
-import sys
 import os
+import sys
 import threading
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -518,11 +519,41 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Scholarship Assistant Backend")
     parser.add_argument("--init", action="store_true", help="Run the init interview")
+    parser.add_argument(
+        "--import-file",
+        metavar="FILE",
+        help="Import Q&A from a .txt file into the profile (uses DeepSeek to parse)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="With --import-file: show proposed updates without applying",
+    )
     parser.add_argument("--host", default=HOST, help=f"Host (default: {HOST})")
     parser.add_argument("--port", type=int, default=PORT, help=f"Port (default: {PORT})")
     args = parser.parse_args()
 
-    if args.init:
+    if args.import_file:
+        ensure_data_dir()
+        path = Path(args.import_file)
+        if not path.exists():
+            logger.error(f"File not found: {path}")
+            sys.exit(1)
+        content = path.read_text(encoding="utf-8", errors="replace")
+        result = import_into_profile(content, dry_run=args.dry_run)
+        if result.get("error"):
+            logger.error(result["error"])
+            sys.exit(1)
+        print(result["summary"])
+        if result.get("updates"):
+            print(f"\nUpdates ({'preview' if args.dry_run else 'applied'}):")
+            for k, v in result["updates"].items():
+                print(f"  {k}: {v}")
+        if result.get("skipped"):
+            print(f"\nSkipped: {', '.join(result['skipped'])}")
+        if args.dry_run and result.get("updates"):
+            print("\n(Run without --dry-run to apply)")
+    elif args.init:
         ensure_data_dir()
         run_interview()
     else:
