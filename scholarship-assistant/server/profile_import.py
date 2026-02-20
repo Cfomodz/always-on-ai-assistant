@@ -1,12 +1,15 @@
 """
-Profile Import — Digest Q&A pairs or raw text into the user profile via DeepSeek.
-Accepts tab-separated Question/Answer/LastAnswered or free-form text.
+Profile Import — Digest Q&A pairs, raw text, or PDF (e.g. resume) into the user profile via DeepSeek.
+Accepts tab-separated Question/Answer/LastAnswered, free-form text, or PDF documents.
 """
 
 import json
 import logging
-import sys
 import os
+import sys
+from pathlib import Path
+
+import pymupdf
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -15,9 +18,25 @@ from server.profile_manager import load_profile, get_flat_profile_for_matching, 
 
 logger = logging.getLogger("scholarship-assistant")
 
+
+def load_content_from_path(path: Path) -> str:
+    """Load text content from a file. Supports .txt and .pdf (e.g. resume)."""
+    path = Path(path)
+    suffix = path.suffix.lower()
+    if suffix == ".txt":
+        return path.read_text(encoding="utf-8", errors="replace")
+    if suffix == ".pdf":
+        doc = pymupdf.open(path)
+        try:
+            chunks = [page.get_text() for page in doc]
+            return "\n".join(chunks)
+        finally:
+            doc.close()
+    raise ValueError(f"Unsupported file type: {suffix}. Use .txt or .pdf")
+
 IMPORT_SYSTEM_PROMPT = """You are a scholarship profile data extractor. You receive:
 1. The current user profile (flattened, dot-notation keys)
-2. Imported content: either structured Q&A pairs (Question / Answer(s) / Last Answered) or raw text
+2. Imported content: either structured Q&A pairs (Question / Answer(s) / Last Answered), raw text, or a document such as a resume/CV
 
 Your job: Extract ALL facts from the imported content and produce profile updates. The profile supports DYNAMIC keys—you are NOT limited to the schema below. Add new keys whenever the data doesn't fit an existing field.
 
@@ -58,6 +77,47 @@ Respond with valid JSON:
   },
   "summary": "Brief human-readable summary of what was imported (1-2 sentences)",
   "skipped": ["Reason for skipping ambiguous items, if any"]
+}"""
+
+REVIEW_SYSTEM_PROMPT = """You are a scholarship profile cleaner. You receive the current profile (flattened, dot-notation keys).
+
+Your job: Identify and fix duplicates, near-duplicates, misplaced data, and inconsistencies so the profile stays lean and accurate for form-filling.
+
+Focus on:
+
+1. **DEDUPLICATE arrays** — Same concept in different forms should become ONE canonical entry.
+   - "BS", "Bachelor of Science", "B.S. in CS", "Bachelor of Science in Computer Science" → consolidate to 1–2 distinct degrees if they differ, or 1 if they're the same
+   - "Computer Science", "CS", "Comp Sci" → ["Computer Science"]
+   - "ADD", "ADD/ADHD", "ADHD" → ["ADD/ADHD"] or similar
+   - Prefer the most complete/formal form when merging. Keep distinct items (e.g. different majors), merge near-synonyms.
+
+2. **FIX MISPLACED data** — Data in the wrong field.
+   - A major listed under degree_type → move to majors
+   - A human language (English, Spanish) under programming_languages → move to extended.languages_spoken or remove
+   - Skills/honors that are clearly in the wrong category → move to the correct field
+
+3. **REMOVE nonsensical entries** — Values that don't belong.
+   - "Yes"/"No" in an array of interests → remove (that's a boolean answer, not a list item)
+   - Placeholder text, "N/A", "—" → remove
+   - Empty strings in arrays → remove
+
+4. **NORMALIZE strings** — Single-value fields with redundant wording.
+   - If a string field has variants elsewhere that mean the same thing, pick the canonical form.
+
+Rules:
+- Only output updates for fields that NEED changes. Omit fields that are fine.
+- Don't invent data. Only consolidate, move, or remove existing values.
+- Preserve distinct/semantic differences. "Computer Science" and "Cybersecurity" are different majors — keep both.
+- For arrays: output the deduplicated, canonical list. Order doesn't matter unless logical.
+- For extended.* arrays: same dedup rules. These can get very long — consolidate aggressively.
+
+Respond with valid JSON only:
+{
+  "updates": {
+    "dot.key": "cleaned value or [array]"
+  },
+  "summary": "Brief description of what was cleaned (1-2 sentences)",
+  "skipped": ["Reasons for not changing ambiguous items, if any"]
 }"""
 
 
@@ -197,3 +257,55 @@ Extract all applicable facts and produce the updates object. Respond with JSON o
         "skipped": skipped,
         "error": None,
     }
+
+
+def review_profile(dry_run: bool = False) -> dict:
+    """
+    Review the profile for duplicates, misplaced data, and inconsistencies. Uses DeepSeek to
+    suggest cleanup. Call after import to reduce clutter (e.g. degree_type triplicated from
+    slightly different answers).
+
+    Args:
+        dry_run: If True, return proposed updates without applying.
+
+    Returns:
+        Same shape as import_into_profile: applied, updates, summary, skipped, error
+    """
+    profile = load_profile()
+    flat_profile = get_flat_profile_for_matching(profile)
+    if not flat_profile:
+        return {"applied": False, "updates": {}, "summary": "Profile is empty; nothing to review.", "skipped": [], "error": None}
+
+    prompt = f"""{REVIEW_SYSTEM_PROMPT}
+
+Current profile (non-empty fields only):
+{json.dumps(flat_profile, indent=2)}
+
+Identify duplicates, misplaced data, and inconsistencies. Produce the updates object with cleaned values. Respond with JSON only."""
+
+    try:
+        result = json_prompt(prompt)
+    except Exception as e:
+        logger.error(f"Profile review DeepSeek error: {e}")
+        return {"applied": False, "updates": {}, "summary": "", "skipped": [], "error": str(e)}
+
+    updates = result.get("updates", {})
+    if not isinstance(updates, dict):
+        updates = {}
+    summary = result.get("summary", "Review completed.")
+    skipped = result.get("skipped", [])
+    if not isinstance(skipped, list):
+        skipped = [str(skipped)]
+
+    if dry_run:
+        return {"applied": False, "updates": updates, "summary": summary, "skipped": skipped, "error": None}
+
+    if updates:
+        try:
+            update_profile(updates)
+            logger.info(f"Profile review: applied {len(updates)} cleanup updates")
+        except Exception as e:
+            logger.error(f"Profile review save error: {e}")
+            return {"applied": False, "updates": updates, "summary": summary, "skipped": skipped, "error": str(e)}
+
+    return {"applied": bool(updates), "updates": updates, "summary": summary, "skipped": skipped, "error": None}

@@ -51,7 +51,7 @@ from server.voice import (
 )
 from server.essay_handler import handle_essay
 from server.interview import run_interview
-from server.profile_import import import_into_profile
+from server.profile_import import import_into_profile, load_content_from_path, review_profile
 
 logger = logging.getLogger("scholarship-assistant")
 
@@ -527,7 +527,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="With --import-file: show proposed updates without applying",
+        help="With --import-file or --review-profile: show proposed updates without applying",
+    )
+    parser.add_argument(
+        "--no-review",
+        action="store_true",
+        help="With --import-file: skip profile review (dedup/cleanup) after import",
+    )
+    parser.add_argument(
+        "--review-profile",
+        action="store_true",
+        help="Run profile review only (deduplicate, fix misplaced data, clean inconsistencies)",
     )
     parser.add_argument("--host", default=HOST, help=f"Host (default: {HOST})")
     parser.add_argument("--port", type=int, default=PORT, help=f"Port (default: {PORT})")
@@ -539,8 +549,44 @@ if __name__ == "__main__":
         if not path.exists():
             logger.error(f"File not found: {path}")
             sys.exit(1)
-        content = path.read_text(encoding="utf-8", errors="replace")
+        try:
+            content = load_content_from_path(path)
+        except ValueError as e:
+            logger.error(str(e))
+            sys.exit(1)
+        except Exception as e:
+            logger.error(f"Failed to read file: {e}")
+            sys.exit(1)
         result = import_into_profile(content, dry_run=args.dry_run)
+        if result.get("error"):
+            logger.error(result["error"])
+            sys.exit(1)
+        print(result["summary"])
+        if result.get("updates"):
+            print(f"\nUpdates ({'preview' if args.dry_run else 'applied'}):")
+            for k, v in result["updates"].items():
+                print(f"  {k}: {v}")
+        if result.get("skipped"):
+            print(f"\nSkipped: {', '.join(result['skipped'])}")
+        if args.dry_run and result.get("updates"):
+            print("\n(Run without --dry-run to apply)")
+        # Profile review (dedup/cleanup) after import, unless dry-run or --no-review
+        elif not args.dry_run and not args.no_review and result.get("applied"):
+            print("\n--- Profile review ---")
+            review_result = review_profile(dry_run=False)
+            if review_result.get("error"):
+                logger.error(review_result["error"])
+            else:
+                print(review_result["summary"])
+                if review_result.get("updates"):
+                    print("Cleanup applied:")
+                    for k, v in review_result["updates"].items():
+                        print(f"  {k}: {v}")
+                if review_result.get("skipped"):
+                    print(f"Skipped: {', '.join(review_result['skipped'])}")
+    elif args.review_profile:
+        ensure_data_dir()
+        result = review_profile(dry_run=args.dry_run)
         if result.get("error"):
             logger.error(result["error"])
             sys.exit(1)

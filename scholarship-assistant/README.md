@@ -47,26 +47,41 @@ TEXT_INPUT_MODE=1 python -m server.main --init
 
 ---
 
-## Q&A Import
+## Profile Import
 
-Import scholarship Q&A data from a `.txt` file into your profile. DeepSeek parses the content and extracts profile updates. Supports:
+Import content from `.txt` or `.pdf` files into your profile. DeepSeek parses and extracts profile updates. Supports:
 
-- **Tab-separated Q&A** — `Question\tAnswer(s)\tLast Answered`
-- **Free-form text** — raw pasted content
+- **Tab-separated Q&A** — `Question\tAnswer(s)\tLast Answered` (in .txt)
+- **Free-form text** — raw pasted content (in .txt)
+- **PDF documents** — e.g. resume/CV (text is extracted via PyMuPDF)
 
 **Import and apply:**
 
 ```bash
 python -m server.main --import-file /path/to/qa.txt
+python -m server.main --import-file /path/to/resume.pdf
 ```
 
 **Preview updates without applying:**
 
 ```bash
-python -m server.main --import-file /path/to/qa.txt --dry-run
+python -m server.main --import-file /path/to/resume.pdf --dry-run
 ```
 
 The import adds to your existing profile and uses the `extended` section for data that doesn't fit the standard schema.
+
+**Profile review:** After a successful import, a review phase runs automatically. DeepSeek analyzes the profile for duplicates, near-duplicates (e.g. "BS" vs "Bachelor of Science"), misplaced data, and inconsistencies—then applies cleanup. Skip with `--no-review`:
+
+```bash
+python -m server.main --import-file /path/to/qa.txt --no-review
+```
+
+**Review only** (clean up an existing profile without re-importing):
+
+```bash
+python -m server.main --review-profile
+python -m server.main --review-profile --dry-run   # preview cleanup
+```
 
 ---
 
