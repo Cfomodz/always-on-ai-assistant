@@ -9,8 +9,6 @@ import os
 import sys
 from pathlib import Path
 
-import pymupdf
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from modules.deepseek import json_prompt
@@ -26,6 +24,12 @@ def load_content_from_path(path: Path) -> str:
     if suffix == ".txt":
         return path.read_text(encoding="utf-8", errors="replace")
     if suffix == ".pdf":
+        try:
+            import pymupdf
+        except ImportError:
+            raise ValueError(
+                "PDF support requires pymupdf. Install with: pip install pymupdf"
+            ) from None
         doc = pymupdf.open(path)
         try:
             chunks = [page.get_text() for page in doc]
