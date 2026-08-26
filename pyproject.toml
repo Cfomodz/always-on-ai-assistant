@@ -22,5 +22,8 @@ dependencies = [
     "dpath>=2.2.0",
     "elevenlabs>=1.50.3",
     "realtimetts[system]==0.4.40",
-    "pyttsx3>=2.98",
 ]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["paic"]

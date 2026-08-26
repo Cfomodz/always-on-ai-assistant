@@ -199,3 +199,4 @@ realtimesst.log
 *.db
 
 report.json
+*.egg-info/
